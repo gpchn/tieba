@@ -94,6 +94,11 @@ INSERT INTO user_bars (user_id, bar_id)
 VALUES (%s, %s)
 """
 
+# 取消关注贴吧
+DELETE_USER_BAR_COMMAND = """
+DELETE FROM user_bars WHERE user_id = %s AND bar_id = %s
+"""
+
 # 插入帖子
 INSERT_POST_COMMAND = """
 INSERT INTO posts (bar_id, title, content, author_id)
@@ -360,6 +365,24 @@ def get_user_bars(cursor, user_id):
 
 
 @with_db_connection
+def follow_bar(cursor, user_id, bar_id):
+    """用户关注贴吧"""
+    try:
+        cursor.execute(INSERT_USER_BAR_COMMAND, (user_id, bar_id))
+        return True
+    except Exception:
+        # 可能已经关注
+        return False
+
+
+@with_db_connection
+def unfollow_bar(cursor, user_id, bar_id):
+    """用户取消关注贴吧"""
+    cursor.execute(DELETE_USER_BAR_COMMAND, (user_id, bar_id))
+    return cursor.rowcount > 0
+
+
+@with_db_connection
 def reset_all_dbs(cursor):
     cursor.execute("DROP TABLE IF EXISTS comments")
     cursor.execute("DROP TABLE IF EXISTS posts")
@@ -375,5 +398,5 @@ def reset_all_dbs(cursor):
 
     cursor.execute(
         INSERT_USER_COMMAND,
-        ("?", "testUser", hash_password("testPassword", "testSalt"), "testSalt", 100),
+        ("U", "testUser", hash_password("testPassword", "testSalt"), "testSalt", 100),
     )

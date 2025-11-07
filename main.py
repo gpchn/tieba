@@ -90,6 +90,18 @@ class Api:
             return []
         return db.get_user_bars(self.current_user_id)  # type: ignore
 
+    def followBar(self, bar_id):
+        """关注贴吧（需要登录）"""
+        self._ensure_logged_in()
+        result = db.follow_bar(self.current_user_id, bar_id)  # type: ignore
+        return {"success": result}
+
+    def unfollowBar(self, bar_id):
+        """取消关注贴吧（需要登录）"""
+        self._ensure_logged_in()
+        result = db.unfollow_bar(self.current_user_id, bar_id)  # type: ignore
+        return {"success": result}
+
 
 ROOT_DIR = Path(__file__).parent
 STATIC_DIR = ROOT_DIR / "static"

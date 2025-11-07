@@ -1,4 +1,5 @@
 let currentUser = null;
+let currentPostId = null;
 
 function showNotification(message, type = "info") {
   const n = document.getElementById("notification");
@@ -29,8 +30,16 @@ async function loadHotBars() {
     li.className = "bar-item";
     li.innerHTML = `<div class="bar-name">${escapeHtml(
       b.name
-    )}</div><div class="bar-count">${b.post_count || 0}</div>`;
-    li.onclick = () => loadPostsInBar(b.id);
+    )}</div><div class="bar-count">${
+      b.post_count || 0
+    }</div><button class="btn-follow" onclick="followBar(${
+      b.id
+    })">关注</button>`;
+    li.onclick = (e) => {
+      if (e.target.className !== "btn-follow") {
+        loadPostsInBar(b.id);
+      }
+    };
     ul.appendChild(li);
   }
   // also populate post-bar select
@@ -53,8 +62,16 @@ async function loadUserBars() {
   for (const b of bars) {
     const li = document.createElement("li");
     li.className = "bar-item small";
-    li.textContent = b.name;
-    li.onclick = () => loadPostsInBar(b.id);
+    li.innerHTML = `<div class="bar-name">${escapeHtml(
+      b.name
+    )}</div><button class="btn-unfollow" onclick="unfollowBar(${
+      b.id
+    })">取消关注</button>`;
+    li.onclick = (e) => {
+      if (e.target.className !== "btn-unfollow") {
+        loadPostsInBar(b.id);
+      }
+    };
     ul.appendChild(li);
   }
 }
@@ -163,19 +180,48 @@ async function openPost(postId) {
     showNotification("帖子不存在", "error");
     return;
   }
-  // 显示简单 detail 窗口
-  const html = [
-    `<h3>${escapeHtml(post.title)}</h3>`,
-    `<div class="meta">作者:${post.author_id} · ${post.create_time}</div>`,
-    `<div class="content">${escapeHtml(post.content)}</div>`,
-    `<h4>评论</h4>`,
-  ];
-  for (const c of post.comments || []) {
-    html.push(
-      `<div class="comment">${escapeHtml(c.content)} <div class="meta">by ${
-        c.author_id
-      } · ${c.create_time} · 点赞 ${c.likes}</div></div>`
-    );
+
+  currentPostId = postId;
+
+  // 填充帖子详情
+  // 填充帖子详情
+  document.getElementById("detail-title").textContent = escapeHtml(post.title);
+  document.getElementById(
+    "detail-author"
+  ).textContent = `作者: ${post.author_id}`;
+  document.getElementById("detail-time").textContent = post.create_time;
+  document.getElementById("detail-content").textContent = post.content;
+
+  // 显示评论
+  const commentsList = document.getElementById("comments-list");
+  commentsList.innerHTML = "";
+  if (post.comments && post.comments.length > 0) {
+    for (const c of post.comments) {
+      const commentDiv = document.createElement("div");
+      commentDiv.className = "comment";
+
+      const contentDiv = document.createElement("div");
+      contentDiv.textContent = escapeHtml(c.content);
+      commentDiv.appendChild(contentDiv);
+
+      const metaDiv = document.createElement("div");
+      metaDiv.className = "comment-meta";
+      metaDiv.innerHTML = `by ${c.author_id} · ${c.create_time} · 点赞 ${
+        c.likes || 0
+      }`;
+
+      // 添加点赞按钮
+      const likeBtn = document.createElement("button");
+      likeBtn.className = "btn btn-sm";
+      likeBtn.innerHTML = `<i class="fas fa-thumbs-up"></i> 点赞`;
+      likeBtn.onclick = () => likeComment(c.id);
+      metaDiv.appendChild(likeBtn);
+
+      commentDiv.appendChild(metaDiv);
+      commentsList.appendChild(commentDiv);
+    }
+  } else {
+    commentsList.innerHTML = "<p>暂无评论</p>";
   }
   const w = window.open("", "_blank");
   w.document.write(html.join("\n"));
@@ -237,6 +283,34 @@ async function createBar() {
     showNotification("创建成功");
     loadHotBars();
   } else showNotification("创建失败:" + (r.error || ""));
+}
+
+async function followBar(barId) {
+  if (!currentUser) {
+    showNotification("请先登录", "error");
+    return;
+  }
+  const r = await window.pywebview.api.followBar(barId);
+  if (r && r.success) {
+    showNotification("关注成功", "success");
+    loadUserBars();
+  } else {
+    showNotification("关注失败", "error");
+  }
+}
+
+async function unfollowBar(barId) {
+  if (!currentUser) {
+    showNotification("请先登录", "error");
+    return;
+  }
+  const r = await window.pywebview.api.unfollowBar(barId);
+  if (r && r.success) {
+    showNotification("已取消关注", "success");
+    loadUserBars();
+  } else {
+    showNotification("取消关注失败", "error");
+  }
 }
 
 async function submitPost() {

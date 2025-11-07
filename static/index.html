@@ -6,10 +6,7 @@
     <title>四中贴吧 - 发现精彩内容</title>
     <link rel="stylesheet" href="css/main.css" />
     <!-- 引入字体图标库 -->
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
+    <link rel="stylesheet" href="css/fa.all.min.css" />
   </head>
   <body>
     <div class="app-container">
@@ -241,6 +238,44 @@
         </div>
       </div>
 
+      <!-- 帖子详情模态框 -->
+      <div id="modal-post-detail" class="modal">
+        <div class="modal-content modal-large">
+          <div class="modal-header">
+            <h3 class="modal-title" id="detail-title">帖子详情</h3>
+            <button class="modal-close" onclick="hideAllModals()" title="关闭">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="post-detail-header">
+              <div class="post-detail-meta">
+                <span id="detail-author"></span>
+                <span id="detail-time"></span>
+              </div>
+            </div>
+            <div class="post-detail-content" id="detail-content"></div>
+
+            <div class="comments-section">
+              <h4>评论</h4>
+              <div id="comments-list"></div>
+
+              <div class="comment-form" id="comment-form">
+                <div class="form-group">
+                  <textarea
+                    id="comment-content"
+                    placeholder="写下您的评论..."
+                  ></textarea>
+                </div>
+                <button id="comment-submit" class="btn btn-primary">
+                  发表评论
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 通知提示 -->
       <div id="notification" class="notification"></div>
 
@@ -261,12 +296,15 @@
           </div>
           <div class="footer-section">
             <h4>联系我们</h4>
-            <p><i class="fas fa-envelope"></i> contact@tieba.example.com</p>
-            <p><i class="fas fa-phone"></i> 123-456-7890</p>
+            <p><i class="fas fa-envelope"></i> tieba@252123.xyz</p>
+            <p>
+              <i class="fas fa-github"></i>
+              <a href="https://github.com/gpchn/tieba">GitHub Repo</a>
+            </p>
           </div>
         </div>
         <div class="footer-bottom">
-          <p>&copy; 2023 四中贴吧. 保留所有权利.</p>
+          <p>&copy; 2025 四中贴吧. 保留所有权利.</p>
         </div>
       </footer>
     </div>
