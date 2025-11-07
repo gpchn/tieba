@@ -1,0 +1,16 @@
+[project]
+name = "tieba"
+version = "0.1.0"
+description = "四中贴吧"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "cryptography>=46.0.3",
+    "pymysql>=1.1.2",
+    "python-dotenv>=1.2.1",
+    "pywebview>=6.1",
+]
+
+[[tool.uv.index]]
+url = "https://pypi.mirrors.ustc.edu.cn/simple/"
+default = true

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>四中贴吧 - 发现精彩内容</title>
+    <link rel="stylesheet" href="css/main.css" />
+    <!-- 引入字体图标库 -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+  </head>
+  <body>
+    <div class="app-container">
+      <!-- 顶部导航栏 -->
+      <header class="navbar">
+        <div class="nav-container">
+          <div class="nav-brand">
+            <div class="logo">
+              <i class="fas fa-comments"></i>
+            </div>
+            <h1 class="site-title">四中贴吧</h1>
+          </div>
+
+          <div class="nav-search">
+            <div class="search-box">
+              <input
+                type="text"
+                id="search"
+                placeholder="搜索帖子、用户或话题..."
+              />
+              <button class="search-btn" onclick="search()" title="搜索">
+                <i class="fas fa-search"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="nav-actions">
+            <button class="btn-create-post" id="btn-new-post">
+              <i class="fas fa-plus"></i>
+              <span>发帖</span>
+            </button>
+
+            <div class="user-menu">
+              <button class="btn-login" id="btn-login">登录</button>
+              <button class="btn-register" id="btn-register">注册</button>
+              <button class="btn-logout" id="btn-logout" style="display: none">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>退出</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- 主要内容区 -->
+      <main class="main-content">
+        <div class="content-container">
+          <!-- 左侧边栏 -->
+          <aside class="sidebar sidebar-left">
+            <div class="sidebar-section">
+              <h3 class="section-title">
+                <i class="fas fa-fire"></i>
+                热门贴吧
+              </h3>
+              <ul id="hot-bars" class="bars-list"></ul>
+            </div>
+
+            <div class="sidebar-section">
+              <h3 class="section-title">
+                <i class="fas fa-star"></i>
+                我的关注
+              </h3>
+              <ul id="user-bars" class="bars-list"></ul>
+            </div>
+          </aside>
+
+          <!-- 中间内容区 -->
+          <section class="content-area">
+            <div class="content-header">
+              <h2 class="page-title">最新帖子</h2>
+              <div class="filter-options">
+                <button class="filter-btn active">全部</button>
+                <button class="filter-btn">热门</button>
+                <button class="filter-btn">精华</button>
+              </div>
+            </div>
+
+            <div id="posts-list" class="posts-container"></div>
+
+            <div class="load-more">
+              <button class="load-more-btn">加载更多</button>
+            </div>
+          </section>
+
+          <!-- 右侧边栏 -->
+          <aside class="sidebar sidebar-right">
+            <div class="sidebar-card">
+              <h3 class="card-title">
+                <i class="fas fa-info-circle"></i>
+                使用提示
+              </h3>
+              <p>欢迎来到四中贴吧！在这里您可以：</p>
+              <ul class="tips-list">
+                <li>浏览热门话题和帖子</li>
+                <li>关注感兴趣的贴吧</li>
+                <li>登录后发布新帖</li>
+                <li>评论和点赞他人内容</li>
+              </ul>
+            </div>
+
+            <div class="sidebar-card">
+              <h3 class="card-title">
+                <i class="fas fa-chart-line"></i>
+                社区统计
+              </h3>
+              <div class="stats">
+                <div class="stat-item">
+                  <span class="stat-value">1,234</span>
+                  <span class="stat-label">帖子总数</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-value">5,678</span>
+                  <span class="stat-label">用户总数</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-value">12,345</span>
+                  <span class="stat-label">评论总数</span>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </main>
+
+      <!-- 登录模态框 -->
+      <div id="modal-login" class="modal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3 class="modal-title">登录账号</h3>
+            <button class="modal-close" onclick="hideAllModals()" title="关闭">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="login-username">用户名</label>
+              <input
+                type="text"
+                id="login-username"
+                placeholder="请输入用户名"
+              />
+            </div>
+            <div class="form-group">
+              <label for="login-password">密码</label>
+              <input
+                type="password"
+                id="login-password"
+                placeholder="请输入密码"
+              />
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button id="login-submit" class="btn btn-primary">登录</button>
+            <button onclick="hideAllModals()" class="btn btn-secondary">
+              取消
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 注册模态框 -->
+      <div id="modal-register" class="modal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3 class="modal-title">注册账号</h3>
+            <button class="modal-close" onclick="hideAllModals()" title="关闭">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="register-username">用户名</label>
+              <input
+                type="text"
+                id="register-username"
+                placeholder="请输入用户名"
+              />
+            </div>
+            <div class="form-group">
+              <label for="register-password">密码</label>
+              <input
+                type="password"
+                id="register-password"
+                placeholder="请输入密码"
+              />
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button id="register-submit" class="btn btn-primary">注册</button>
+            <button onclick="hideAllModals()" class="btn btn-secondary">
+              取消
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 发帖模态框 -->
+      <div id="modal-post" class="modal">
+        <div class="modal-content modal-large">
+          <div class="modal-header">
+            <h3 class="modal-title">发布新帖</h3>
+            <button class="modal-close" onclick="hideAllModals()" title="关闭">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="post-bar">选择贴吧</label>
+              <select id="post-bar"></select>
+            </div>
+            <div class="form-group">
+              <label for="post-title">标题</label>
+              <input type="text" id="post-title" placeholder="请输入帖子标题" />
+            </div>
+            <div class="form-group">
+              <label for="post-content">内容</label>
+              <textarea
+                id="post-content"
+                placeholder="分享您的想法..."
+              ></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button id="post-submit" class="btn btn-primary">发布</button>
+            <button onclick="hideAllModals()" class="btn btn-secondary">
+              取消
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 通知提示 -->
+      <div id="notification" class="notification"></div>
+
+      <!-- 页脚 -->
+      <footer class="footer">
+        <div class="footer-container">
+          <div class="footer-section">
+            <h4>四中贴吧</h4>
+            <p>一个分享、交流、学习的平台</p>
+          </div>
+          <div class="footer-section">
+            <h4>快速链接</h4>
+            <ul>
+              <li><a href="#">使用指南</a></li>
+              <li><a href="#">社区规范</a></li>
+              <li><a href="#">意见反馈</a></li>
+            </ul>
+          </div>
+          <div class="footer-section">
+            <h4>联系我们</h4>
+            <p><i class="fas fa-envelope"></i> contact@tieba.example.com</p>
+            <p><i class="fas fa-phone"></i> 123-456-7890</p>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <p>&copy; 2023 四中贴吧. 保留所有权利.</p>
+        </div>
+      </footer>
+    </div>
+
+    <script src="js/main.js"></script>
+  </body>
+</html>
