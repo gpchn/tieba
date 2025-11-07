@@ -34,10 +34,16 @@
           </div>
 
           <div class="nav-actions">
-            <button class="btn-create-post" id="btn-new-post">
-              <i class="fas fa-plus"></i>
-              <span>发帖</span>
-            </button>
+            <div class="action-buttons">
+              <button class="btn-create-post" id="btn-new-post">
+                <i class="fas fa-plus"></i>
+                <span>发帖</span>
+              </button>
+              <button class="btn-create-bar" id="btn-create-bar">
+                <i class="fas fa-plus-circle"></i>
+                <span>创建贴吧</span>
+              </button>
+            </div>
 
             <div class="user-menu">
               <button class="btn-login" id="btn-login">登录</button>
@@ -114,15 +120,15 @@
               </h3>
               <div class="stats">
                 <div class="stat-item">
-                  <span class="stat-value">1,234</span>
+                  <span class="stat-value" id="stat-posts">-</span>
                   <span class="stat-label">帖子总数</span>
                 </div>
                 <div class="stat-item">
-                  <span class="stat-value">5,678</span>
+                  <span class="stat-value" id="stat-users">-</span>
                   <span class="stat-label">用户总数</span>
                 </div>
                 <div class="stat-item">
-                  <span class="stat-value">12,345</span>
+                  <span class="stat-value" id="stat-comments">-</span>
                   <span class="stat-label">评论总数</span>
                 </div>
               </div>
@@ -238,6 +244,37 @@
         </div>
       </div>
 
+      <!-- 创建贴吧模态框 -->
+      <div id="modal-create-bar" class="modal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3 class="modal-title">创建贴吧</h3>
+            <button class="modal-close" onclick="hideAllModals()" title="关闭">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="bar-name">贴吧名称</label>
+              <input type="text" id="bar-name" placeholder="请输入贴吧名称" />
+            </div>
+            <div class="form-group">
+              <label for="bar-description">贴吧简介</label>
+              <textarea
+                id="bar-description"
+                placeholder="请输入贴吧简介（可选）"
+              ></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button id="create-bar-submit" class="btn btn-primary">创建</button>
+            <button onclick="hideAllModals()" class="btn btn-secondary">
+              取消
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- 帖子详情模态框 -->
       <div id="modal-post-detail" class="modal">
         <div class="modal-content modal-large">
@@ -296,9 +333,12 @@
           </div>
           <div class="footer-section">
             <h4>联系我们</h4>
-            <p><i class="fas fa-envelope"></i> tieba@252123.xyz</p>
             <p>
-              <i class="fas fa-github"></i>
+              <i class="fas fa-envelope"></i>
+              <a href="mailto:tieba@252123.xyz">tieba@252123.xyz</a>
+            </p>
+            <p>
+              <i class="fa-brands fa-github"></i>
               <a href="https://github.com/gpchn/tieba">GitHub Repo</a>
             </p>
           </div>

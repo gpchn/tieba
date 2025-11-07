@@ -148,6 +148,12 @@ body {
   gap: 1rem;
 }
 
+.action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .btn-create-post {
   display: flex;
   align-items: center;
@@ -163,6 +169,24 @@ body {
 }
 
 .btn-create-post:hover {
+  background-color: var(--primary-dark);
+}
+
+.btn-create-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-create-bar:hover {
   background-color: var(--primary-dark);
 }
 
@@ -586,6 +610,13 @@ body {
   transition: opacity 0.3s ease, visibility 0.3s ease;
 }
 
+/* 修复模态框显示时的居中问题 */
+.modal[style*="block"] {
+  opacity: 1;
+  visibility: visible;
+  display: flex !important;
+}
+
 .modal[style*="block"] {
   opacity: 1;
   visibility: visible;
@@ -907,4 +938,41 @@ body {
     align-items: flex-start;
     gap: 1rem;
   }
+}
+
+/* 统一滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Firefox 滚动条样式 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) var(--bg-tertiary);
+}
+
+/* 模态框内容区域滚动条优化 */
+.modal-body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) var(--bg-primary);
+}
+
+.modal-body::-webkit-scrollbar-track {
+  background: var(--bg-primary);
 }

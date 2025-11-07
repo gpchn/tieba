@@ -324,7 +324,16 @@ def get_bar_by_name(cursor, bar_name):
 def get_post_by_id(cursor, post_id):
     """根据ID获取帖子信息"""
     cursor.execute(GET_POST_BY_ID_COMMAND, (post_id,))
-    return cursor.fetchone()
+    post = cursor.fetchone()
+
+    if not post:
+        return None
+
+    # 转换datetime对象为字符串
+    if 'create_time' in post and hasattr(post['create_time'], 'strftime'):
+        post['create_time'] = post['create_time'].strftime('%Y-%m-%d %H:%M:%S')
+
+    return post
 
 
 @with_db_connection
@@ -339,7 +348,14 @@ def get_posts_in_bar(cursor, bar_id, page=1, per_page=20):
     """获取贴吧的帖子列表（分页）"""
     offset = (page - 1) * per_page
     cursor.execute(GET_POSTS_IN_BAR_COMMAND, (bar_id, per_page, offset))
-    return cursor.fetchall()
+    posts = cursor.fetchall()
+
+    # 转换datetime对象为字符串
+    for post in posts:
+        if 'create_time' in post and hasattr(post['create_time'], 'strftime'):
+            post['create_time'] = post['create_time'].strftime('%Y-%m-%d %H:%M:%S')
+
+    return posts
 
 
 @with_db_connection
@@ -347,21 +363,42 @@ def get_comments_in_post(cursor, post_id, page=1, per_page=50):
     """获取帖子的评论列表（分页）"""
     offset = (page - 1) * per_page
     cursor.execute(GET_COMMENTS_IN_POST_COMMAND, (post_id, per_page, offset))
-    return cursor.fetchall()
+    comments = cursor.fetchall()
+
+    # 转换datetime对象为字符串
+    for comment in comments:
+        if 'create_time' in comment and hasattr(comment['create_time'], 'strftime'):
+            comment['create_time'] = comment['create_time'].strftime('%Y-%m-%d %H:%M:%S')
+
+    return comments
 
 
 @with_db_connection
 def get_hot_bars(cursor, limit=10):
     """获取热门贴吧"""
     cursor.execute(GET_HOT_BARS_COMMAND, (limit,))
-    return cursor.fetchall()
+    bars = cursor.fetchall()
+
+    # 转换datetime对象为字符串
+    for bar in bars:
+        if 'create_time' in bar and hasattr(bar['create_time'], 'strftime'):
+            bar['create_time'] = bar['create_time'].strftime('%Y-%m-%d %H:%M:%S')
+
+    return bars
 
 
 @with_db_connection
 def get_user_bars(cursor, user_id):
     """获取用户关注的贴吧"""
     cursor.execute(GET_USER_BARS_COMMAND, (user_id,))
-    return cursor.fetchall()
+    bars = cursor.fetchall()
+
+    # 转换datetime对象为字符串
+    for bar in bars:
+        if 'create_time' in bar and hasattr(bar['create_time'], 'strftime'):
+            bar['create_time'] = bar['create_time'].strftime('%Y-%m-%d %H:%M:%S')
+
+    return bars
 
 
 @with_db_connection
@@ -380,6 +417,33 @@ def unfollow_bar(cursor, user_id, bar_id):
     """用户取消关注贴吧"""
     cursor.execute(DELETE_USER_BAR_COMMAND, (user_id, bar_id))
     return cursor.rowcount > 0
+
+@with_db_connection
+def get_stats(cursor):
+    """获取社区统计信息"""
+    stats = {}
+
+    # 获取帖子总数
+    cursor.execute("SELECT COUNT(*) as count FROM posts")
+    stats["posts"] = cursor.fetchone()["count"]
+
+    # 获取用户总数
+    cursor.execute("SELECT COUNT(*) as count FROM users")
+    stats["users"] = cursor.fetchone()["count"]
+
+    # 获取评论总数
+    cursor.execute("SELECT COUNT(*) as count FROM comments")
+    stats["comments"] = cursor.fetchone()["count"]
+
+    # 获取今日发帖数
+    cursor.execute("SELECT COUNT(*) as count FROM posts WHERE DATE(create_time) = CURDATE()")
+    stats["today_posts"] = cursor.fetchone()["count"]
+
+    # 获取今日注册用户数
+    cursor.execute("SELECT COUNT(*) as count FROM users WHERE DATE(CURRENT_TIMESTAMP) = CURDATE()")
+    stats["today_users"] = cursor.fetchone()["count"]
+
+    return stats
 
 
 @with_db_connection

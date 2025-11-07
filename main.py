@@ -102,6 +102,10 @@ class Api:
         result = db.unfollow_bar(self.current_user_id, bar_id)  # type: ignore
         return {"success": result}
 
+    def getStats(self):
+        """获取社区统计信息"""
+        return db.get_stats()  # type: ignore
+
 
 ROOT_DIR = Path(__file__).parent
 STATIC_DIR = ROOT_DIR / "static"
@@ -110,8 +114,8 @@ main_window = webview.create_window(
     title="Tieba",
     url=f"file://{STATIC_DIR}/index.html",
     js_api=Api(),
-    height=600,
-    width=800,
+    height=800,
+    width=1200,
     on_top=True,
 )
 

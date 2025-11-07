@@ -76,6 +76,31 @@ async function loadUserBars() {
   }
 }
 
+async function loadStats() {
+  const stats = await window.pywebview.api.getStats();
+  if (stats) {
+    document.getElementById("stat-posts").textContent = formatNumber(stats.posts || 0);
+    document.getElementById("stat-users").textContent = formatNumber(stats.users || 0);
+    document.getElementById("stat-comments").textContent = formatNumber(stats.comments || 0);
+  }
+}
+
+function formatNumber(num) {
+  if (num >= 10000) {
+    return (num / 10000).toFixed(1) + "万";
+  } else if (num >= 1000) {
+    return (num / 1000).toFixed(1) + "k";
+  }
+  return num.toString();
+}
+
+function showLoginPrompt() {
+  showNotification("请先登录后再进行此操作", "warning");
+  setTimeout(() => {
+    showModal("modal-login");
+  }, 1000);
+}
+
 async function loadPostsInBar(barId) {
   const posts = await window.pywebview.api.getPostsInBar(barId, 1, 50);
   renderPosts(posts, barId);
@@ -228,12 +253,24 @@ async function openPost(postId) {
 }
 
 async function submitComment(postId, content) {
+  // 检查用户是否登录
+  if (!currentUser) {
+    showLoginPrompt();
+    return;
+  }
+
   const r = await window.pywebview.api.createComment(postId, content, null);
   if (r && r.success) showNotification("评论成功", "success");
   else showNotification("评论失败:" + (r && r.error), "error");
 }
 
 async function likeComment(commentId) {
+  // 检查用户是否登录
+  if (!currentUser) {
+    showLoginPrompt();
+    return;
+  }
+
   const r = await window.pywebview.api.likeComment(commentId);
   if (r && r.success) showNotification("已点赞");
   else showNotification("点赞失败");
@@ -276,18 +313,38 @@ function logout() {
 }
 
 async function createBar() {
-  const name = prompt("贴吧名称");
-  if (!name) return;
+  showModal("modal-create-bar");
+}
+
+async function submitCreateBar() {
+  // 检查用户是否登录
+  if (!currentUser) {
+    showLoginPrompt();
+    return;
+  }
+
+  const name = document.getElementById("bar-name").value.trim();
+  if (!name) {
+    showNotification("贴吧名称不能为空", "error");
+    return;
+  }
+
   const r = await window.pywebview.api.createBar(name);
   if (r.success) {
-    showNotification("创建成功");
+    showNotification("创建成功", "success");
+    hideAllModals();
     loadHotBars();
-  } else showNotification("创建失败:" + (r.error || ""));
+    // 清空表单
+    document.getElementById("bar-name").value = "";
+    document.getElementById("bar-description").value = "";
+  } else {
+    showNotification("创建失败: " + (r.error || ""), "error");
+  }
 }
 
 async function followBar(barId) {
   if (!currentUser) {
-    showNotification("请先登录", "error");
+    showLoginPrompt();
     return;
   }
   const r = await window.pywebview.api.followBar(barId);
@@ -314,6 +371,12 @@ async function unfollowBar(barId) {
 }
 
 async function submitPost() {
+  // 检查用户是否登录
+  if (!currentUser) {
+    showLoginPrompt();
+    return;
+  }
+
   const barId = document.getElementById("post-bar").value;
   const title = document.getElementById("post-title").value.trim();
   const content = document.getElementById("post-content").value.trim();
@@ -348,6 +411,8 @@ async function initApp() {
   document.getElementById("btn-new-post").onclick = () =>
     showModal("modal-post");
   document.getElementById("post-submit").onclick = submitPost;
+  document.getElementById("btn-create-bar").onclick = createBar;
+  document.getElementById("create-bar-submit").onclick = submitCreateBar;
 
   // load initial state
   try {
@@ -362,6 +427,7 @@ async function initApp() {
     console.error(e);
   }
   await loadHotBars();
+  await loadStats();
 }
 
 // 页面加载完成后初始化
