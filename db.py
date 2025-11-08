@@ -73,6 +73,28 @@ CREATE_TABLE_USER_BARS_COMMAND = """
     );
 """
 
+# 用户点赞帖子表
+CREATE_TABLE_POST_LIKES_COMMAND = """
+    CREATE TABLE IF NOT EXISTS post_likes (
+        user_id INT NOT NULL,
+        post_id INT NOT NULL,
+        PRIMARY KEY (user_id, post_id),
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (post_id) REFERENCES posts(id)
+    );
+"""
+
+# 用户点赞评论表
+CREATE_TABLE_COMMENT_LIKES_COMMAND = """
+    CREATE TABLE IF NOT EXISTS comment_likes (
+        user_id INT NOT NULL,
+        comment_id INT NOT NULL,
+        PRIMARY KEY (user_id, comment_id),
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (comment_id) REFERENCES comments(id)
+    );
+"""
+
 # ========================
 # SQL 操作模板
 # ========================
@@ -116,6 +138,53 @@ LIKE_COMMENT_COMMAND = """
 UPDATE comments
 SET likes = likes + 1
 WHERE id = %s
+"""
+
+# 取消点赞评论
+UNLIKE_COMMENT_COMMAND = """
+UPDATE comments
+SET likes = likes - 1
+WHERE id = %s
+"""
+
+# 检查用户是否已点赞评论
+CHECK_COMMENT_LIKED_COMMAND = """
+SELECT COUNT(*) as liked FROM comment_likes WHERE user_id = %s AND comment_id = %s
+"""
+
+# 点赞评论记录
+INSERT_COMMENT_LIKE_COMMAND = """
+INSERT INTO comment_likes (user_id, comment_id) VALUES (%s, %s)
+"""
+
+# 取消点赞评论记录
+DELETE_COMMENT_LIKE_COMMAND = """
+DELETE FROM comment_likes WHERE user_id = %s AND comment_id = %s
+"""
+
+# 获取评论点赞数
+GET_COMMENT_LIKES_COMMAND = """
+SELECT COUNT(*) as likes FROM comment_likes WHERE comment_id = %s
+"""
+
+# 检查用户是否已点赞帖子
+CHECK_POST_LIKED_COMMAND = """
+SELECT COUNT(*) as liked FROM post_likes WHERE user_id = %s AND post_id = %s
+"""
+
+# 点赞帖子
+LIKE_POST_COMMAND = """
+INSERT INTO post_likes (user_id, post_id) VALUES (%s, %s)
+"""
+
+# 取消点赞帖子
+UNLIKE_POST_COMMAND = """
+DELETE FROM post_likes WHERE user_id = %s AND post_id = %s
+"""
+
+# 获取帖子点赞数
+GET_POST_LIKES_COMMAND = """
+SELECT COUNT(*) as likes FROM post_likes WHERE post_id = %s
 """
 
 # 用户登录验证
@@ -234,6 +303,8 @@ def create_tables(cursor):
     cursor.execute(CREATE_TABLE_POSTS_COMMAND)
     cursor.execute(CREATE_TABLE_COMMENTS_COMMAND)
     cursor.execute(CREATE_TABLE_USER_BARS_COMMAND)
+    cursor.execute(CREATE_TABLE_POST_LIKES_COMMAND)
+    cursor.execute(CREATE_TABLE_COMMENT_LIKES_COMMAND)
     return True
 
 
@@ -306,17 +377,80 @@ def create_comment(cursor, post_id, content, author_id, reply_to_user=None):
 
 
 @with_db_connection
-def like_comment(cursor, comment_id):
-    """点赞评论"""
-    cursor.execute(LIKE_COMMENT_COMMAND, (comment_id,))
+def like_comment(cursor, user_id, comment_id):
+    """切换评论点赞状态（点赞或取消点赞）"""
+    # 检查用户是否已点赞该评论
+    cursor.execute(CHECK_COMMENT_LIKED_COMMAND, (user_id, comment_id))
+    is_liked = cursor.fetchone()["liked"] > 0
 
-    # 点赞增加经验值（给评论作者）
-    cursor.execute("SELECT author_id FROM comments WHERE id = %s", (comment_id,))
-    comment = cursor.fetchone()
-    if comment:
-        cursor.execute(ADD_USER_EXP_COMMAND, (1, comment["author_id"]))
+    if is_liked:
+        # 已点赞，则取消点赞
+        cursor.execute(DELETE_COMMENT_LIKE_COMMAND, (user_id, comment_id))
+        cursor.execute(UNLIKE_COMMENT_COMMAND, (comment_id,))
+        result = {"is_liked": False}
+    else:
+        # 未点赞，则点赞
+        cursor.execute(INSERT_COMMENT_LIKE_COMMAND, (user_id, comment_id))
+        cursor.execute(LIKE_COMMENT_COMMAND, (comment_id,))
+        # 点赞增加经验值（给评论作者）
+        cursor.execute("SELECT author_id FROM comments WHERE id = %s", (comment_id,))
+        comment = cursor.fetchone()
+        if comment:
+            cursor.execute(ADD_USER_EXP_COMMAND, (1, comment["author_id"]))
+        result = {"is_liked": True}
 
-    return True
+    # 获取更新后的点赞数
+    cursor.execute(GET_COMMENT_LIKES_COMMAND, (comment_id,))
+    likes_count = cursor.fetchone()["likes"]
+    result["likes"] = likes_count
+    result["success"] = True
+
+    return result
+
+
+@with_db_connection
+def toggle_post_like(cursor, user_id, post_id):
+    """切换帖子点赞状态（点赞或取消点赞）"""
+    # 检查用户是否已点赞该帖子
+    cursor.execute(CHECK_POST_LIKED_COMMAND, (user_id, post_id))
+    is_liked = cursor.fetchone()["liked"] > 0
+
+    if is_liked:
+        # 已点赞，则取消点赞
+        cursor.execute(UNLIKE_POST_COMMAND, (user_id, post_id))
+        result = {"is_liked": False}
+    else:
+        # 未点赞，则点赞
+        cursor.execute(LIKE_POST_COMMAND, (user_id, post_id))
+        # 点赞增加经验值（给帖子作者）
+        cursor.execute("SELECT author_id FROM posts WHERE id = %s", (post_id,))
+        post = cursor.fetchone()
+        if post:
+            cursor.execute(ADD_USER_EXP_COMMAND, (2, post["author_id"]))
+        result = {"is_liked": True}
+
+    # 获取更新后的点赞数
+    cursor.execute(GET_POST_LIKES_COMMAND, (post_id,))
+    likes_count = cursor.fetchone()["likes"]
+    result["likes"] = likes_count
+    result["success"] = True
+
+    return result
+
+
+@with_db_connection
+def check_post_liked(cursor, user_id, post_id):
+    """检查用户是否已点赞该帖子"""
+    cursor.execute(CHECK_POST_LIKED_COMMAND, (user_id, post_id))
+    is_liked = cursor.fetchone()["liked"] > 0
+    return is_liked
+
+
+@with_db_connection
+def get_post_likes(cursor, post_id):
+    """获取帖子的点赞数"""
+    cursor.execute(GET_POST_LIKES_COMMAND, (post_id,))
+    return cursor.fetchone()
 
 
 @with_db_connection
@@ -350,22 +484,40 @@ def get_user_by_id(cursor, user_id):
 
 
 @with_db_connection
-def get_posts_in_bar(cursor, bar_id, page=1, per_page=20):
+def get_posts_in_bar(cursor, bar_id, page=1, per_page=20, user_id=None):
     """获取贴吧的帖子列表（分页）"""
     offset = (page - 1) * per_page
     cursor.execute(GET_POSTS_IN_BAR_COMMAND, (bar_id, per_page, offset))
     posts = cursor.fetchall()
 
-    # 转换datetime对象为字符串
+    # 为每个帖子添加点赞数和当前用户是否已点赞
     for post in posts:
+        # 转换datetime对象为字符串
         if "create_time" in post and hasattr(post["create_time"], "strftime"):
             post["create_time"] = post["create_time"].strftime("%Y-%m-%d %H:%M:%S")
+
+        # 获取点赞数
+        cursor.execute(GET_POST_LIKES_COMMAND, (post["id"],))
+        post["likes"] = cursor.fetchone()["likes"]
+
+        # 如果提供了用户ID，检查用户是否已点赞该帖子
+        if user_id is not None:
+            cursor.execute(CHECK_POST_LIKED_COMMAND, (user_id, post["id"]))
+            post["is_liked"] = cursor.fetchone()["liked"] > 0
+        else:
+            post["is_liked"] = False
+
+        # 获取评论数
+        cursor.execute(
+            "SELECT COUNT(*) as count FROM comments WHERE post_id = %s", (post["id"],)
+        )
+        post["comments_count"] = cursor.fetchone()["count"]
 
     return posts
 
 
 @with_db_connection
-def get_comments_in_post(cursor, post_id, page=1, per_page=50):
+def get_comments_in_post(cursor, post_id, page=1, per_page=50, user_id=None):
     """获取帖子的评论列表（分页）"""
     offset = (page - 1) * per_page
     cursor.execute(GET_COMMENTS_IN_POST_COMMAND, (post_id, per_page, offset))
@@ -377,6 +529,17 @@ def get_comments_in_post(cursor, post_id, page=1, per_page=50):
             comment["create_time"] = comment["create_time"].strftime(
                 "%Y-%m-%d %H:%M:%S"
             )
+        
+        # 获取点赞数
+        cursor.execute(GET_COMMENT_LIKES_COMMAND, (comment["id"],))
+        comment["likes"] = cursor.fetchone()["likes"]
+        
+        # 如果提供了用户ID，检查用户是否已点赞该评论
+        if user_id is not None:
+            cursor.execute(CHECK_COMMENT_LIKED_COMMAND, (user_id, comment["id"]))
+            comment["liked_by_user"] = cursor.fetchone()["liked"] > 0
+        else:
+            comment["liked_by_user"] = False
 
     return comments
 
@@ -460,7 +623,53 @@ def get_stats(cursor):
 
 
 @with_db_connection
-def get_latest_posts(cursor, page=1, per_page=20):
+def search_posts(cursor, query, user_id=None):
+    """搜索帖子（标题和内容）"""
+    # 构建搜索查询
+    search_query = f"%{query}%"
+    
+    # 搜索帖子
+    cursor.execute("""
+    SELECT p.id, p.title, p.content, p.bar_id, p.author_id, p.create_time,
+           b.name as bar_name, u.name as author_name
+    FROM posts p
+    JOIN bars b ON p.bar_id = b.id
+    JOIN users u ON p.author_id = u.id
+    WHERE p.title LIKE %s OR p.content LIKE %s
+    ORDER BY p.create_time DESC
+    LIMIT 100
+    """, (search_query, search_query))
+    
+    posts = cursor.fetchall()
+    
+    # 为每个帖子添加点赞数和当前用户是否已点赞
+    for post in posts:
+        # 转换datetime对象为字符串
+        if "create_time" in post and hasattr(post["create_time"], "strftime"):
+            post["create_time"] = post["create_time"].strftime("%Y-%m-%d %H:%M:%S")
+        
+        # 获取点赞数
+        cursor.execute(GET_POST_LIKES_COMMAND, (post["id"],))
+        post["likes"] = cursor.fetchone()["likes"]
+        
+        # 如果提供了用户ID，检查用户是否已点赞该帖子
+        if user_id is not None:
+            cursor.execute(CHECK_POST_LIKED_COMMAND, (user_id, post["id"]))
+            post["is_liked"] = cursor.fetchone()["liked"] > 0
+        else:
+            post["is_liked"] = False
+        
+        # 获取评论数
+        cursor.execute(
+            "SELECT COUNT(*) as count FROM comments WHERE post_id = %s", (post["id"],)
+        )
+        post["comments_count"] = cursor.fetchone()["count"]
+    
+    return posts
+
+
+@with_db_connection
+def get_latest_posts(cursor, page=1, per_page=20, user_id=None):
     """获取最新帖子列表（分页）"""
     offset = (page - 1) * per_page
 
@@ -478,27 +687,45 @@ def get_latest_posts(cursor, page=1, per_page=20):
     cursor.execute(query, (per_page, offset))
     posts = cursor.fetchall()
 
-    # 转换datetime对象为字符串
+    # 为每个帖子添加点赞数和当前用户是否已点赞
     for post in posts:
+        # 转换datetime对象为字符串
         if "create_time" in post and hasattr(post["create_time"], "strftime"):
             post["create_time"] = post["create_time"].strftime("%Y-%m-%d %H:%M:%S")
+
+        # 获取点赞数
+        cursor.execute(GET_POST_LIKES_COMMAND, (post["id"],))
+        post["likes"] = cursor.fetchone()["likes"]
+
+        # 如果提供了用户ID，检查用户是否已点赞该帖子
+        if user_id is not None:
+            cursor.execute(CHECK_POST_LIKED_COMMAND, (user_id, post["id"]))
+            post["is_liked"] = cursor.fetchone()["liked"] > 0
+        else:
+            post["is_liked"] = False
+
+        # 获取评论数
+        cursor.execute(
+            "SELECT COUNT(*) as count FROM comments WHERE post_id = %s", (post["id"],)
+        )
+        post["comments_count"] = cursor.fetchone()["count"]
 
     return posts
 
 
 @with_db_connection
 def reset_all_dbs(cursor):
-    cursor.execute("DROP TABLE IF EXISTS comments")
-    cursor.execute("DROP TABLE IF EXISTS posts")
-    cursor.execute("DROP TABLE IF EXISTS bars")
-    cursor.execute("DROP TABLE IF EXISTS users")
-    cursor.execute("DROP TABLE IF EXISTS user_bars")
+    # 不要修改删除顺序，有依赖
+    for table in ("post_likes", "user_bars", "comments", "posts", "bars", "users"):
+        cursor.execute(f"DROP TABLE IF EXISTS {table}")
 
     cursor.execute(CREATE_TABLE_USER_COMMAND)
     cursor.execute(CREATE_TABLE_BARS_COMMAND)
     cursor.execute(CREATE_TABLE_POSTS_COMMAND)
     cursor.execute(CREATE_TABLE_COMMENTS_COMMAND)
     cursor.execute(CREATE_TABLE_USER_BARS_COMMAND)
+    cursor.execute(CREATE_TABLE_POST_LIKES_COMMAND)
+    cursor.execute(CREATE_TABLE_COMMENT_LIKES_COMMAND)
 
     cursor.execute(
         INSERT_USER_COMMAND,

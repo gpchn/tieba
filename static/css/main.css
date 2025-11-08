@@ -31,8 +31,12 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .fa-spin {
@@ -116,44 +120,48 @@ body {
 .nav-container {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 0 1rem;
+  padding: 0 1.5rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 4rem;
+  height: 4.5rem;
+  gap: 1.5rem;
 }
 
 .nav-brand {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 1rem;
+  flex-shrink: 0;
 }
 
 .logo {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.75rem;
+  height: 2.75rem;
   background-color: var(--primary-color);
   color: white;
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
 }
 
 .logo i {
-  font-size: 1.25rem;
+  font-size: 1.4rem;
 }
 
 .site-title {
-  font-size: 1.5rem;
+  font-size: 1.6rem;
   font-weight: 700;
   color: var(--text-primary);
+  letter-spacing: -0.025em;
 }
 
 .nav-search {
   flex: 1;
-  max-width: 500px;
-  margin: 0 2rem;
+  max-width: 520px;
+  margin: 0 1.5rem;
 }
 
 .search-box {
@@ -163,30 +171,39 @@ body {
 
 .search-box input {
   width: 100%;
-  padding: 0.5rem 2.5rem 0.5rem 1rem;
+  padding: 0.6rem 2.8rem 0.6rem 1.2rem;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
-  font-size: 0.875rem;
+  font-size: 0.9rem;
   background-color: var(--bg-tertiary);
   transition: var(--transition);
+  box-shadow: var(--shadow-sm);
 }
 
 .search-box input:focus {
   outline: none;
   border-color: var(--primary-color);
   background-color: var(--bg-primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .search-btn {
   position: absolute;
-  right: 0.5rem;
+  right: 0.6rem;
   top: 50%;
   transform: translateY(-50%);
   background: none;
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
-  padding: 0.25rem;
+  padding: 0.3rem;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+}
+
+.search-btn:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--primary-color);
 }
 
 .nav-actions {
@@ -223,7 +240,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 1rem;
+  padding: 0.6rem 1.2rem;
   background-color: var(--primary-color);
   color: white;
   border: none;
@@ -231,10 +248,14 @@ body {
   font-weight: 500;
   cursor: pointer;
   transition: var(--transition);
+  box-shadow: var(--shadow-sm);
+  font-size: 0.9rem;
 }
 
 .btn-create-bar:hover {
   background-color: var(--primary-dark);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .user-menu {
@@ -246,7 +267,7 @@ body {
 .btn-login,
 .btn-register,
 .btn-logout {
-  padding: 0.5rem 1rem;
+  padding: 0.6rem 1.1rem;
   border: 1px solid var(--border-color);
   background-color: var(--bg-primary);
   color: var(--text-primary);
@@ -257,12 +278,16 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  font-size: 0.9rem;
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-login:hover,
 .btn-register:hover,
 .btn-logout:hover {
   background-color: var(--bg-tertiary);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 /* 主要内容区 */
@@ -506,6 +531,21 @@ body {
   gap: 1.5rem;
 }
 
+/* 空状态样式 */
+.empty-state {
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.empty-state i {
+  color: var(--text-light);
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
 .post {
   background-color: var(--bg-primary);
   border: 1px solid var(--border-color);
@@ -584,6 +624,11 @@ body {
   gap: 1rem;
 }
 
+.hotness-stat {
+  color: var(--accent-color);
+  font-weight: 500;
+}
+
 .stat {
   display: flex;
   align-items: center;
@@ -595,6 +640,23 @@ body {
 .post-actions {
   display: flex;
   gap: 0.5rem;
+}
+
+.btn-like {
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-like:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.btn-like.liked {
+  background-color: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
 }
 
 .btn {
@@ -634,27 +696,15 @@ body {
   background-color: var(--border-color);
 }
 
-.load-more {
+.load-more-indicator {
   display: flex;
   justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
   margin-top: 2rem;
-}
-
-.load-more-btn {
-  padding: 0.75rem 1.5rem;
-  background-color: var(--bg-tertiary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  font-weight: 500;
-  cursor: pointer;
-  transition: var(--transition);
-}
-
-.load-more-btn:hover {
-  background-color: var(--primary-color);
-  color: white;
-  border-color: var(--primary-color);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  padding: 0.75rem;
 }
 
 /* 右侧边栏卡片 */
@@ -716,6 +766,13 @@ body {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--primary-color);
+  transition: all 0.5s ease;
+}
+
+/* 数字变化动画 */
+.stat-value.updating {
+  transform: scale(1.2);
+  color: var(--accent-color);
 }
 
 .stat-label {
@@ -730,20 +787,21 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.3s ease, visibility 0.3s ease;
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 /* 显示模态框的类 */
 .modal.show {
   opacity: 1;
   visibility: visible;
+  background-color: rgba(0, 0, 0, 0.5);
 }
 
 /* 修复模态框显示时的居中问题 */
@@ -751,6 +809,7 @@ body {
   opacity: 1;
   visibility: visible;
   display: flex !important;
+  background-color: rgba(0, 0, 0, 0.5);
 }
 
 .modal-content {
@@ -761,16 +820,27 @@ body {
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: var(--shadow-xl);
-  transform: translateY(20px);
-  transition: transform 0.3s ease;
+  transform: translateY(30px) scale(0.95);
+  opacity: 0;
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  /* 修复滚动条破坏圆角的问题 */
+  overflow-x: hidden;
+  padding-right: 8px;
+  margin-right: -8px;
 }
 
-.modal[style*="block"] .modal-content {
-  transform: translateY(0);
+.modal[style*="block"] .modal-content,
+.modal.show .modal-content {
+  transform: translateY(0) scale(1);
+  opacity: 1;
 }
 
 .modal-large {
   max-width: 700px;
+  /* 修复滚动条破坏圆角的问题 */
+  overflow-x: hidden;
+  padding-right: 8px;
+  margin-right: -8px;
 }
 
 .modal-header {
@@ -890,6 +960,42 @@ body {
   margin-bottom: 1rem;
 }
 
+.post-detail-stats {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background-color: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+}
+
+.post-detail-stats .stat {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.post-detail-stats .btn-like {
+  margin-left: auto;
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.post-detail-stats .btn-like:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.post-detail-stats .btn-like.liked {
+  background-color: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
 .post-detail-content {
   line-height: 1.6;
   margin-bottom: 2rem;
@@ -920,13 +1026,17 @@ body {
 }
 
 .comment::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
   height: 100%;
   width: 4px;
-  background: linear-gradient(to bottom, var(--primary-color), var(--primary-light));
+  background: linear-gradient(
+    to bottom,
+    var(--primary-color),
+    var(--primary-light)
+  );
   opacity: 0.8;
 }
 

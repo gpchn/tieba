@@ -1,509 +1,1002 @@
-let currentUser = null;
-let currentPostId = null;
+// Vue应用初始化
+const { createApp, ref, reactive, computed, onMounted, onUnmounted } = Vue;
 
-function showNotification(message, type = "info") {
-  const n = document.getElementById("notification");
-  n.textContent = message;
-  n.style.display = "block";
-  n.className = "notification " + type;
-  setTimeout(() => (n.style.display = "none"), 3000);
-}
+// 全局变量跟踪Vue应用状态
+window.vueAppStatus = {
+  initialized: false,
+  mounted: false,
+  error: null,
+};
 
-function showModal(modalId) {
-  hideAllModals();
-  const m = document.getElementById(modalId);
-  if (m) m.style.display = "block";
-}
+const TiebaApp = {
+  setup() {
+    // 状态管理
+    const state = reactive({
+      // 用户信息
+      currentUser: null,
 
-function hideAllModals() {
-  document
-    .querySelectorAll(".modal")
-    .forEach((m) => (m.style.display = "none"));
-}
+      // 模态框状态
+      modals: {
+        login: false,
+        register: false,
+        post: false,
+        postDetail: false,
+        createBar: false,
+      },
 
-async function loadHotBars() {
-  const bars = await window.pywebview.api.getHotBars(20);
-  const userBars = await window.pywebview.api.getFollowedBars();
-  console.log("获取到的用户关注贴吧:", userBars);
-  const userBarIds = userBars && userBars.length > 0 ? new Set(userBars.map(b => b.id)) : new Set();
+      // 数据
+      hotBars: [],
+      userBars: [],
+      posts: [],
+      currentPost: null,
+      comments: [],
+      currentBar: null, // 当前选中的贴吧
+      isLoadingMore: false, // 是否正在加载更多
+      currentPage: 1, // 当前页码
+      hasMorePosts: true, // 是否还有更多帖子
+      isHotPostsView: false, // 是否为热门帖子视图
+      stats: {
+        posts: 0,
+        users: 0,
+        comments: 0,
+      },
+    });
 
-  // 检查用户是否登录
-  const currentUser = await window.pywebview.api.getCurrentUser();
-  const isLoggedIn = !!currentUser;
-  console.log("用户登录状态:", isLoggedIn, "当前用户:", currentUser);
+    // 表单数据
+    const loginForm = reactive({
+      username: "",
+      password: "",
+    });
 
-  const ul = document.getElementById("hot-bars");
-  ul.innerHTML = "";
-  for (const b of bars) {
-    const li = document.createElement("li");
-    li.className = "bar-item";
+    const registerForm = reactive({
+      username: "",
+      password: "",
+    });
 
-    // 根据登录状态和关注状态显示不同按钮
-    let buttonHtml = "";
-    if (isLoggedIn) {
-      const isFollowed = userBarIds.has(b.id);
-      buttonHtml = isFollowed 
-        ? `<button class="btn-unfollow" onclick="unfollowBar(${b.id})">取消关注</button>`
-        : `<button class="btn-follow" onclick="followBar(${b.id})">关注</button>`;
-    } else {
-      buttonHtml = `<button class="btn-follow" onclick="showLoginPrompt()">关注</button>`;
-    }
+    const postForm = reactive({
+      barId: "",
+      title: "",
+      content: "",
+    });
 
-    li.innerHTML = `<div class="bar-name">${escapeHtml(
-      b.name
-    )}</div><div class="bar-count">${
-      b.post_count || 0
-    }</div>${buttonHtml}`;
-    li.onclick = (e) => {
-      if (e.target.className !== "btn-follow" && e.target.className !== "btn-unfollow") {
-        loadPostsInBar(b.id);
+    const createBarForm = reactive({
+      name: "",
+      description: "",
+    });
+
+    const commentForm = reactive({
+      content: "",
+    });
+
+    const searchQuery = ref("");
+
+    // 计算属性
+    const isLoggedIn = computed(() => !!state.currentUser);
+
+    // 工具函数
+    const escapeHtml = (s) => {
+      if (!s) return "";
+      return s.replace(
+        /[&<>"]/g,
+        (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])
+      );
+    };
+
+    // 显示贴吧名称，自动添加'吧'字
+    const displayBarName = (name) => {
+      if (!name) return "";
+      // 如果名称已经以'吧'结尾，直接返回
+      if (name.endsWith("吧")) return name;
+      // 否则添加'吧'字
+      return name + "吧";
+    };
+
+    const formatNumber = (num) => {
+      if (num >= 10000) {
+        return (num / 10000).toFixed(1) + "万";
+      } else if (num >= 1000) {
+        return (num / 1000).toFixed(1) + "k";
+      }
+      return num.toString();
+    };
+
+    const formatTime = (timeStr) => {
+      if (!timeStr) return "";
+      try {
+        const date = new Date(timeStr);
+        const now = new Date();
+        const diff = now - date;
+
+        // 如果小于1分钟
+        if (diff < 60000) {
+          return "刚刚";
+        }
+        // 如果小于1小时
+        if (diff < 3600000) {
+          return Math.floor(diff / 60000) + "分钟前";
+        }
+        // 如果小于1天
+        if (diff < 86400000) {
+          return Math.floor(diff / 3600000) + "小时前";
+        }
+        // 如果小于7天
+        if (diff < 604800000) {
+          return Math.floor(diff / 86400000) + "天前";
+        }
+
+        // 否则返回具体日期
+        return date.toLocaleDateString();
+      } catch (e) {
+        return timeStr;
       }
     };
-    ul.appendChild(li);
-  }
-  // also populate post-bar select with only followed bars
-  const sel = document.getElementById("post-bar");
-  if (sel) {
-    sel.innerHTML = "";
-    for (const b of userBars) {  // 只显示已关注的贴吧
-      const opt = document.createElement("option");
-      opt.value = b.id;
-      opt.text = b.name;
-      sel.appendChild(opt);
-    }
-  }
-}
 
-async function loadUserBars() {
-  const bars = await window.pywebview.api.getFollowedBars();
-  const ul = document.getElementById("user-bars");
-  ul.innerHTML = "";
-  for (const b of bars) {
-    const li = document.createElement("li");
-    li.className = "bar-item small";
-    li.innerHTML = `<div class="bar-name">${escapeHtml(
-      b.name
-    )}</div><button class="btn-unfollow" onclick="unfollowBar(${
-      b.id
-    })">取消关注</button>`;
-    li.onclick = (e) => {
-      if (e.target.className !== "btn-unfollow") {
-        loadPostsInBar(b.id);
+    const showNotification = (message, type = "info") => {
+      const n = document.getElementById("notification");
+      n.textContent = message;
+      n.style.display = "block";
+      n.className = "notification " + type;
+      setTimeout(() => (n.style.display = "none"), 3000);
+    };
+
+    // 模态框控制
+    const showModal = (modalName) => {
+      console.log("showModal called with:", modalName);
+      // 关闭所有模态框
+      Object.keys(state.modals).forEach((key) => {
+        state.modals[key] = false;
+      });
+      // 打开指定模态框
+      state.modals[modalName] = true;
+      console.log("Modal state after showModal:", state.modals);
+    };
+
+    const hideAllModals = () => {
+      Object.keys(state.modals).forEach((key) => {
+        state.modals[key] = false;
+      });
+    };
+
+    // 判断贴吧是否已关注
+    const isBarFollowed = (barId) => {
+      return state.userBars.some((bar) => bar.id === barId);
+    };
+
+    // API调用函数
+    const loadHotBars = async () => {
+      try {
+        const bars = await window.pywebview.api.getHotBars(20);
+        const userBars = await window.pywebview.api.getFollowedBars();
+        state.hotBars = bars;
+        state.userBars = userBars;
+      } catch (error) {
+        console.error("加载热门贴吧失败:", error);
+        showNotification("加载热门贴吧失败", "error");
       }
     };
-    ul.appendChild(li);
-  }
-}
 
-async function loadStats() {
-  const stats = await window.pywebview.api.getStats();
-  if (stats) {
-    document.getElementById("stat-posts").textContent = formatNumber(stats.posts || 0);
-    document.getElementById("stat-users").textContent = formatNumber(stats.users || 0);
-    document.getElementById("stat-comments").textContent = formatNumber(stats.comments || 0);
-  }
-}
+    const loadUserBars = async () => {
+      try {
+        const bars = await window.pywebview.api.getFollowedBars();
+        state.userBars = bars;
+      } catch (error) {
+        console.error("加载用户关注贴吧失败:", error);
+        showNotification("加载用户关注贴吧失败", "error");
+      }
+    };
 
-function formatNumber(num) {
-  if (num >= 10000) {
-    return (num / 10000).toFixed(1) + "万";
-  } else if (num >= 1000) {
-    return (num / 1000).toFixed(1) + "k";
-  }
-  return num.toString();
-}
+    const loadStats = async () => {
+      try {
+        const stats = await window.pywebview.api.getStats();
+        
+        // 如果已有统计数据，比较新旧值，添加动画效果
+        if (state.stats) {
+          // 添加动画类
+          const statElements = document.querySelectorAll(".stat-value");
+          statElements.forEach(el => el.classList.add("updating"));
+          
+          // 更新数据
+          state.stats = stats || { posts: 0, users: 0, comments: 0 };
+          
+          // 动画结束后移除类
+          setTimeout(() => {
+            statElements.forEach(el => el.classList.remove("updating"));
+          }, 500);
+        } else {
+          // 首次加载
+          state.stats = stats || { posts: 0, users: 0, comments: 0 };
+        }
+      } catch (error) {
+        console.error("加载统计数据失败:", error);
+      }
+    };
 
-function showLoginPrompt() {
-  showNotification("请先登录后再进行此操作", "warning");
-  setTimeout(() => {
-    showModal("modal-login");
-  }, 1000);
-}
+    const loadLatestPosts = async (reset = true) => {
+      try {
+        if (reset) {
+          state.currentPage = 1;
+          state.hasMorePosts = true;
+        }
 
-async function loadPostsInBar(barId) {
-  const posts = await window.pywebview.api.getPostsInBar(barId, 1, 50);
-  renderPosts(posts, barId);
-}
+        const posts = await window.pywebview.api.getLatestPosts(
+          state.currentPage,
+          20
+        );
 
-// 格式化时间
-function formatTime(timeStr) {
-  if (!timeStr) return "";
-  try {
-    const date = new Date(timeStr);
-    const now = new Date();
-    const diff = now - date;
+        if (reset) {
+          state.posts = posts || [];
+        } else {
+          // 追加新帖子
+          if (posts && posts.length > 0) {
+            state.posts = [...state.posts, ...posts];
+          } else {
+            state.hasMorePosts = false;
+          }
+        }
 
-    // 如果小于1分钟
-    if (diff < 60000) {
-      return "刚刚";
-    }
-    // 如果小于1小时
-    if (diff < 3600000) {
-      return Math.floor(diff / 60000) + "分钟前";
-    }
-    // 如果小于1天
-    if (diff < 86400000) {
-      return Math.floor(diff / 3600000) + "小时前";
-    }
-    // 如果小于7天
-    if (diff < 604800000) {
-      return Math.floor(diff / 86400000) + "天前";
-    }
+        // 更新页面标题
+        document.querySelector(".page-title").textContent = "最新帖子";
+        // 设置热门帖子视图标志
+        state.isHotPostsView = false;
+        // 更新按钮激活状态
+        document.querySelectorAll(".filter-btn").forEach((btn) => {
+          btn.classList.remove("active");
+        });
+        document
+          .querySelector(".filter-btn:first-child")
+          .classList.add("active");
+      } catch (error) {
+        console.error("加载最新帖子失败:", error);
+        showNotification("加载最新帖子失败", "error");
+      }
+    };
 
-    // 否则返回具体日期
-    return date.toLocaleDateString();
-  } catch (e) {
-    return timeStr;
-  }
-}
+    const loadHotPosts = async (reset = true) => {
+      try {
+        if (reset) {
+          state.currentPage = 1;
+          state.hasMorePosts = true;
+        }
 
-function renderPosts(posts, barId) {
-  const container = document.getElementById("posts-list");
-  container.innerHTML = "";
-  if (!posts || posts.length === 0) {
-    container.innerHTML =
-      "<div class='empty-state'><i class='fas fa-inbox'></i><p>暂无帖子</p></div>";
-    return;
-  }
-  for (const p of posts) {
-    const div = document.createElement("div");
-    div.className = "post";
+        // 获取所有帖子
+        const allPosts = await window.pywebview.api.getLatestPosts(1, 1000);
 
-    // 获取用户名首字母作为头像
-    const avatar = p.author_name ? p.author_name.charAt(0).toUpperCase() : "U";
+        // 确保每个帖子都有正确的点赞数和评论数
+        allPosts.forEach((post) => {
+          post.likes = post.likes || post.like_count || 0;
+          post.comments_count = post.comments_count || post.comment_count || 0;
+          // 确保每个帖子都有is_liked属性
+          post.is_liked = post.is_liked || false;
+        });
 
-    // 格式化时间
-    const timeStr = formatTime(p.create_time);
+        // 计算每个帖子的热度（点赞数 * 2 + 评论数）
+        const postsWithHotness = allPosts.map((post) => {
+          const likes = post.likes || 0;
+          const comments = post.comments_count || 0;
+          // 热度计算：点赞数权重更高，同时考虑时间因素
+          // 发布时间越新，热度越高（按天数衰减）
+          const now = new Date();
+          const postDate = new Date(post.created_at);
+          const daysDiff = Math.max(
+            1,
+            Math.floor((now - postDate) / (1000 * 60 * 60 * 24))
+          );
+          const timeFactor = 1 / Math.log(daysDiff + 1); // 对数衰减，越新衰减越小
 
-    div.innerHTML = `
-      <div class="post-header">
-        <div class="post-avatar">${avatar}</div>
-        <div class="post-meta">
-          <div class="post-author">${escapeHtml(
-            p.author_name || "匿名用户"
-          )}</div>
-          <div class="post-time">${timeStr}</div>
-        </div>
-      </div>
-      <h3 class="post-title">${escapeHtml(p.title)}</h3>
-      <div class="post-content">${escapeHtml(
-        p.content
-          ? p.content.slice(0, 200) + (p.content.length > 200 ? "..." : "")
-          : ""
-      )}</div>
-      <div class="post-footer">
-        <div class="post-stats">
-          <span class="stat"><i class="fas fa-comment"></i> ${
-            p.comment_count || 0
-          }</span>
-          <span class="stat"><i class="fas fa-heart"></i> ${
-            p.like_count || 0
-          }</span>
-        </div>
-        <div class="post-actions">
-          <button class="btn btn-primary" onclick="openPost(${p.id})">
-            <i class="fas fa-arrow-right"></i> 查看详情
-          </button>
-        </div>
-      </div>`;
-    container.appendChild(div);
-  }
-}
+          // 综合热度计算：基础热度(点赞*2+评论) * 时间因子
+          post.hotness = (likes * 2 + comments) * timeFactor;
+          return post;
+        });
 
-function escapeHtml(s) {
-  if (!s) return "";
-  return s.replace(
-    /[&<>\"]/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])
-  );
-}
+        // 按热度降序排序
+        postsWithHotness.sort((a, b) => b.hotness - a.hotness);
 
-async function openPost(postId) {
-  const post = await window.pywebview.api.getPostById(postId);
-  if (!post) {
-    showNotification("帖子不存在", "error");
-    return;
-  }
+        // 获取当前页的帖子
+        const startIndex = (state.currentPage - 1) * 20;
+        const endIndex = startIndex + 20;
+        const posts = postsWithHotness.slice(startIndex, endIndex);
 
-  currentPostId = postId;
+        if (reset) {
+          state.posts = posts || [];
+        } else {
+          // 追加新帖子
+          if (posts && posts.length > 0) {
+            state.posts = [...state.posts, ...posts];
+          } else {
+            state.hasMorePosts = false;
+          }
+        }
 
-  // 填充帖子详情
-  // 填充帖子详情
-  document.getElementById("detail-title").textContent = escapeHtml(post.title);
-  document.getElementById(
-    "detail-author"
-  ).textContent = `作者: ${post.author_name || post.author_id}`;
-  document.getElementById("detail-time").textContent = post.create_time;
-  document.getElementById("detail-content").textContent = post.content;
+        // 更新页面标题
+        document.querySelector(".page-title").textContent = "热门帖子";
+        // 设置热门帖子视图标志
+        state.isHotPostsView = true;
+        // 更新按钮激活状态
+        document.querySelectorAll(".filter-btn").forEach((btn) => {
+          btn.classList.remove("active");
+        });
+        document
+          .querySelector(".filter-btn:nth-child(2)")
+          .classList.add("active");
 
-  // 显示评论
-  const commentsList = document.getElementById("comments-list");
-  commentsList.innerHTML = "";
-  if (post.comments && post.comments.length > 0) {
-    for (const c of post.comments) {
-      const commentDiv = document.createElement("div");
-      commentDiv.className = "comment";
+        if (reset) {
+          showNotification("已加载热门帖子", "success");
+        }
+      } catch (error) {
+        console.error("加载热门帖子失败:", error);
+        showNotification("加载热门帖子失败", "error");
+      }
+    };
 
-      // 创建评论内容区域
-      const contentDiv = document.createElement("div");
-      contentDiv.className = "comment-content";
-      contentDiv.textContent = escapeHtml(c.content);
-      commentDiv.appendChild(contentDiv);
+    const refreshPosts = async () => {
+      // 添加旋转动画类
+      const refreshBtn = document.querySelector(".refresh-btn i");
+      if (refreshBtn) {
+        refreshBtn.classList.add("fa-spin");
+      }
 
-      // 创建评论元信息区域
-      const metaDiv = document.createElement("div");
-      metaDiv.className = "comment-meta";
+      try {
+        // 获取当前页面标题，判断当前是哪种帖子列表
+        const pageTitle = document.querySelector(".page-title").textContent;
 
-      // 创建作者信息部分
-      const authorDiv = document.createElement("div");
-      authorDiv.className = "comment-author";
-      authorDiv.innerHTML = `${c.author_name}<span class="comment-time">${c.create_time}</span>`;
-      metaDiv.appendChild(authorDiv);
+        if (pageTitle.includes("最新")) {
+          await loadLatestPosts();
+        } else if (pageTitle.includes("热门")) {
+          await loadHotPosts();
+        } else {
+          // 默认加载最新帖子
+          await loadLatestPosts();
+        }
 
-      // 创建操作按钮部分
-      const actionsDiv = document.createElement("div");
-      actionsDiv.className = "comment-actions";
+        showNotification("帖子已刷新", "success");
+      } catch (error) {
+        console.error("刷新帖子失败:", error);
+        showNotification("刷新帖子失败", "error");
+      } finally {
+        // 移除旋转动画类
+        if (refreshBtn) {
+          setTimeout(() => {
+            refreshBtn.classList.remove("fa-spin");
+          }, 500);
+        }
+      }
+    };
 
-      // 添加点赞按钮
-      const likeBtn = document.createElement("button");
-      likeBtn.className = "comment-like-btn";
+    const loadPostsInBar = async (barId, reset = true) => {
+      try {
+        // 查找贴吧信息
+        const bar =
+          state.userBars.find((b) => b.id === barId) ||
+          state.hotBars.find((b) => b.id === barId);
 
-      // 检查当前用户是否已点赞此评论
-      const isLiked = c.liked_by_user || false;
-      if (isLiked) {
-        likeBtn.classList.add("liked");
-        likeBtn.innerHTML = `<i class="fas fa-thumbs-up"></i> 已点赞`;
+        if (bar) {
+          // 设置当前贴吧
+          state.currentBar = bar;
+        }
+
+        if (reset) {
+          state.currentPage = 1;
+          state.hasMorePosts = true;
+        }
+
+        const posts = await window.pywebview.api.getPostsInBar(
+          barId,
+          state.currentPage,
+          20
+        );
+
+        if (reset) {
+          state.posts = posts || [];
+        } else {
+          // 追加新帖子
+          if (posts && posts.length > 0) {
+            state.posts = [...state.posts, ...posts];
+          } else {
+            state.hasMorePosts = false;
+          }
+        }
+      } catch (error) {
+        console.error("加载贴吧帖子失败:", error);
+        showNotification("加载贴吧帖子失败", "error");
+      }
+    };
+
+    const backToLatestPosts = () => {
+      // 清除当前贴吧
+      state.currentBar = null;
+      // 加载最新帖子
+      loadLatestPosts();
+    };
+
+    const openPost = async (postId) => {
+      console.log("openPost called with postId:", postId);
+      try {
+        console.log("Calling getPostById API...");
+        const post = await window.pywebview.api.getPostById(postId);
+        console.log("Received post:", post);
+        if (!post) {
+          showNotification("帖子不存在", "error");
+          return;
+        }
+
+        state.currentPost = post;
+        state.comments = post.comments || [];
+        console.log("Opening post detail modal...");
+        showModal("postDetail");
+      } catch (error) {
+        console.error("加载帖子详情失败:", error);
+        showNotification("加载帖子详情失败", "error");
+      }
+    };
+
+    // 切换点赞状态
+    const toggleLike = async (postId) => {
+      if (!isLoggedIn.value) {
+        showNotification("请先登录", "warning");
+        showModal("login");
+        return;
+      }
+
+      try {
+        // 找到对应的帖子
+        const post = state.posts.find((p) => p.id === postId);
+        if (!post) return;
+
+        // 调用API切换点赞状态
+        const result = await window.pywebview.api.toggleLike(postId);
+
+        if (result && result.success) {
+          // 更新点赞状态和数量
+          post.is_liked = result.is_liked;
+          // 确保点赞数正确更新，特别是取消点赞时
+          post.likes = result.likes !== undefined ? result.likes : (result.is_liked ? post.likes + 1 : Math.max(0, post.likes - 1));
+
+          // 如果是当前查看的帖子，也更新其状态
+          if (state.currentPost && state.currentPost.id === postId) {
+            state.currentPost.is_liked = result.is_liked;
+            state.currentPost.likes =
+              result.likes || state.currentPost.likes || 0;
+          }
+
+          showNotification(
+            result.is_liked ? "点赞成功" : "取消点赞",
+            "success"
+          );
+        } else {
+          showNotification("操作失败", "error");
+        }
+      } catch (error) {
+        console.error("点赞操作失败:", error);
+        showNotification("操作失败", "error");
+      }
+    };
+
+    // 用户认证相关函数
+    const submitLogin = async () => {
+      if (!loginForm.username || !loginForm.password) {
+        showNotification("用户名和密码不能为空", "error");
+        return;
+      }
+
+      try {
+        const result = await window.pywebview.api.login(
+          loginForm.username,
+          loginForm.password
+        );
+        if (result.success) {
+          state.currentUser = await window.pywebview.api.getCurrentUser();
+          showNotification("登录成功", "success");
+          hideAllModals();
+          loadUserBars();
+          loadHotBars();
+
+          // 清空表单
+          loginForm.username = "";
+          loginForm.password = "";
+        } else {
+          showNotification("登录失败: " + (result.error || ""), "error");
+        }
+      } catch (error) {
+        console.error("登录失败:", error);
+        showNotification("登录失败", "error");
+      }
+    };
+
+    const submitRegister = async () => {
+      if (!registerForm.username || !registerForm.password) {
+        showNotification("用户名和密码不能为空", "error");
+        return;
+      }
+
+      try {
+        const result = await window.pywebview.api.register(
+          registerForm.username,
+          registerForm.password
+        );
+        if (result.success) {
+          showNotification("注册成功，请登录", "success");
+          hideAllModals();
+          showModal("login");
+
+          // 清空表单
+          registerForm.username = "";
+          registerForm.password = "";
+        } else {
+          showNotification("注册失败: " + (result.error || ""), "error");
+        }
+      } catch (error) {
+        console.error("注册失败:", error);
+        showNotification("注册失败", "error");
+      }
+    };
+
+    const logout = async () => {
+      try {
+        await window.pywebview.api.logout();
+        state.currentUser = null;
+        state.userBars = [];
+        showNotification("已退出");
+      } catch (error) {
+        console.error("退出登录失败:", error);
+        showNotification("退出登录失败", "error");
+      }
+    };
+
+    // 贴吧相关函数
+    const followBar = async (barId) => {
+      if (!isLoggedIn.value) {
+        showNotification("请先登录", "warning");
+        showModal("login");
+        return;
+      }
+
+      try {
+        const result = await window.pywebview.api.followBar(barId);
+        if (result && result.success) {
+          showNotification("关注成功", "success");
+          loadUserBars();
+          loadHotBars();
+        } else {
+          showNotification("关注失败", "error");
+        }
+      } catch (error) {
+        console.error("关注贴吧失败:", error);
+        showNotification("关注贴吧失败", "error");
+      }
+    };
+
+    const unfollowBar = async (barId) => {
+      if (!isLoggedIn.value) {
+        showNotification("请先登录", "error");
+        return;
+      }
+
+      try {
+        const result = await window.pywebview.api.unfollowBar(barId);
+        if (result && result.success) {
+          showNotification("已取消关注", "success");
+          loadUserBars();
+          loadHotBars();
+        } else {
+          showNotification("取消关注失败", "error");
+        }
+      } catch (error) {
+        console.error("取消关注失败:", error);
+        showNotification("取消关注失败", "error");
+      }
+    };
+
+    const submitCreateBar = async () => {
+      if (!isLoggedIn.value) {
+        showNotification("请先登录", "warning");
+        showModal("login");
+        return;
+      }
+
+      if (!createBarForm.name.trim()) {
+        showNotification("贴吧名称不能为空", "error");
+        return;
+      }
+
+      // 确保贴吧名称不以'吧'结尾
+      let barName = createBarForm.name.trim();
+      if (barName.endsWith("吧")) {
+        barName = barName.slice(0, -1);
+        createBarForm.name = barName;
+      }
+
+      try {
+        const result = await window.pywebview.api.createBar(barName);
+        if (result.success) {
+          showNotification("创建成功", "success");
+          hideAllModals();
+          loadHotBars();
+
+          // 清空表单
+          createBarForm.name = "";
+          createBarForm.description = "";
+        } else {
+          showNotification("创建失败: " + (result.error || ""), "error");
+        }
+      } catch (error) {
+        console.error("创建贴吧失败:", error);
+        showNotification("创建贴吧失败", "error");
+      }
+    };
+
+    // 帖子相关函数
+    const openPostInBar = (barId) => {
+      // 设置当前贴吧ID
+      postForm.barId = barId;
+
+      // 显示发帖模态框
+      showModal("post");
+    };
+
+    const submitPost = async () => {
+      if (!isLoggedIn.value) {
+        showNotification("请先登录", "warning");
+        showModal("login");
+        return;
+      }
+
+      if (!postForm.title.trim() || !postForm.content.trim()) {
+        showNotification("标题与内容不能为空", "error");
+        return;
+      }
+
+      try {
+        const result = await window.pywebview.api.createPost(
+          parseInt(postForm.barId),
+          postForm.title,
+          postForm.content
+        );
+        if (result.success) {
+          showNotification("发帖成功", "success");
+          hideAllModals();
+          loadPostsInBar(postForm.barId);
+
+          // 清空表单
+          postForm.barId = "";
+          postForm.title = "";
+          postForm.content = "";
+        } else {
+          showNotification("发帖失败: " + (result.error || ""), "error");
+        }
+      } catch (error) {
+        console.error("发帖失败:", error);
+        showNotification("发帖失败", "error");
+      }
+    };
+
+    // 评论相关函数
+    const submitComment = async () => {
+      if (!isLoggedIn.value) {
+        showNotification("请先登录", "warning");
+        showModal("login");
+        return;
+      }
+
+      if (!commentForm.content.trim()) {
+        showNotification("评论内容不能为空", "error");
+        return;
+      }
+
+      try {
+        const result = await window.pywebview.api.createComment(
+          state.currentPost.id,
+          commentForm.content,
+          null
+        );
+        if (result.success) {
+          showNotification("评论成功", "success");
+          // 重新加载帖子详情以显示新评论
+          openPost(state.currentPost.id);
+
+          // 清空表单
+          commentForm.content = "";
+        } else {
+          showNotification("评论失败: " + (result.error || ""), "error");
+        }
+      } catch (error) {
+        console.error("评论失败:", error);
+        showNotification("评论失败", "error");
+      }
+    };
+
+    const likeComment = async (commentId) => {
+      if (!isLoggedIn.value) {
+        showNotification("请先登录", "warning");
+        showModal("login");
+        return;
+      }
+
+      try {
+        // 找到对应的评论
+        const comment = state.comments.find((c) => c.id === commentId);
+        if (!comment) return;
+
+        // 调用API切换点赞状态
+        const result = await window.pywebview.api.likeComment(commentId);
+
+        if (result && result.success) {
+          // 更新点赞状态和数量
+          comment.liked_by_user = result.liked_by_user !== undefined ? result.liked_by_user : !comment.liked_by_user;
+          // 确保点赞数正确更新
+          comment.likes = result.likes !== undefined ? result.likes : (comment.liked_by_user ? comment.likes + 1 : Math.max(0, comment.likes - 1));
+          
+          showNotification(
+            comment.liked_by_user ? "点赞成功" : "取消点赞",
+            "success"
+          );
+        } else {
+          showNotification("操作失败", "error");
+        }
+      } catch (error) {
+        console.error("点赞操作失败:", error);
+        showNotification("操作失败", "error");
+      }
+    };
+
+    // 搜索函数
+    const search = async () => {
+      if (!searchQuery.value.trim()) {
+        showNotification("请输入搜索内容", "warning");
+        return;
+      }
+      
+      try {
+        // 显示加载指示器
+        const searchBtn = document.querySelector(".search-btn");
+        if (searchBtn) {
+          searchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        }
+        
+        // 调用API搜索
+        const results = await window.pywebview.api.searchPosts(searchQuery.value);
+        
+        if (results && results.length > 0) {
+          // 更新帖子列表
+          state.posts = results;
+          
+          // 更新页面标题
+          document.querySelector(".page-title").textContent = `搜索结果: "${searchQuery.value}"`;
+          
+          // 隐藏加载更多指示器
+          state.hasMorePosts = false;
+          
+          showNotification(`找到 ${results.length} 个相关帖子`, "success");
+        } else {
+          state.posts = [];
+          document.querySelector(".page-title").textContent = `搜索结果: "${searchQuery.value}"`;
+          showNotification("未找到相关帖子", "info");
+        }
+      } catch (error) {
+        console.error("搜索失败:", error);
+        showNotification("搜索失败", "error");
+      } finally {
+        // 恢复搜索按钮
+        const searchBtn = document.querySelector(".search-btn");
+        if (searchBtn) {
+          searchBtn.innerHTML = '<i class="fas fa-search"></i>';
+        }
+      }
+    };
+
+    // 打开创建贴吧模态框
+    const createBar = () => {
+      showModal("createBar");
+    };
+
+    // 滚动加载更多
+    const handleScroll = () => {
+      // 如果正在加载或没有更多帖子，则不处理
+      if (state.isLoadingMore || !state.hasMorePosts) return;
+
+      // 计算滚动位置
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+
+      // 当滚动到距离底部200px以内时，加载更多
+      if (scrollTop + windowHeight >= documentHeight - 200) {
+        loadMorePosts();
+      }
+    };
+
+    // 加载更多帖子
+    const loadMorePosts = async () => {
+      if (state.isLoadingMore || !state.hasMorePosts) return;
+
+      state.isLoadingMore = true;
+      state.currentPage += 1;
+
+      try {
+        // 根据当前状态判断加载哪种类型的帖子
+        if (state.currentBar) {
+          await loadPostsInBar(state.currentBar.id, false);
+        } else {
+          const pageTitle = document.querySelector(".page-title").textContent;
+
+          if (pageTitle.includes("最新")) {
+            await loadLatestPosts(false);
+          } else if (pageTitle.includes("热门")) {
+            await loadHotPosts(false);
+          }
+        }
+      } finally {
+        state.isLoadingMore = false;
+      }
+    };
+
+    // 初始化应用
+    const initApp = async () => {
+      try {
+        // 加载用户信息
+        state.currentUser = await window.pywebview.api.getCurrentUser();
+
+        // 加载数据
+        await Promise.all([
+          loadHotBars(),
+          loadStats(),
+          loadLatestPosts(),
+          isLoggedIn.value ? loadUserBars() : Promise.resolve(),
+        ]);
+
+        // 添加滚动事件监听
+        window.addEventListener("scroll", handleScroll);
+      } catch (error) {
+        console.error("初始化应用失败:", error);
+        showNotification("初始化应用失败", "error");
+      }
+    };
+
+    // 生命周期钩子
+    onMounted(() => {
+      // 如果pywebview已经准备好，立即初始化
+      if (window.pywebview && window.pywebview.api) {
+        initApp();
       } else {
-        likeBtn.innerHTML = `<i class="far fa-thumbs-up"></i> 点赞`;
+        // 否则等待pywebview准备好
+        window.addEventListener("pywebviewready", initApp);
       }
+      
+      // 设置定时更新统计数据，每30秒更新一次
+      setInterval(() => {
+        if (window.pywebview && window.pywebview.api) {
+          loadStats();
+        }
+      }, 30000);
+    });
 
-      likeBtn.onclick = () => likeComment(c.id);
-      actionsDiv.appendChild(likeBtn);
+    onUnmounted(() => {
+      // 移除滚动事件监听
+      window.removeEventListener("scroll", handleScroll);
+    });
 
-      // 添加点赞数
-      const likesSpan = document.createElement("span");
-      likesSpan.className = "comment-likes";
-      likesSpan.textContent = `${c.likes || 0}`;
-      actionsDiv.insertBefore(likesSpan, actionsDiv.firstChild);
+    // 返回所有需要在模板中使用的变量和函数
+    return {
+      // 状态
+      state,
 
-      metaDiv.appendChild(actionsDiv);
+      // 表单数据
+      loginForm,
+      registerForm,
+      postForm,
+      createBarForm,
+      commentForm,
+      searchQuery,
 
-      commentDiv.appendChild(metaDiv);
-      commentsList.appendChild(commentDiv);
-    }
-  } else {
-    commentsList.innerHTML = "<p>暂无评论</p>";
-  }
-  // 显示帖子详情模态框
-  showModal("modal-post-detail");
-  (("\n"));
-}
+      // 计算属性
+      isLoggedIn,
 
-async function submitComment(postId, content) {
-  // 检查用户是否登录
-  if (!currentUser) {
-    showLoginPrompt();
-    return;
-  }
+      // 工具函数
+      escapeHtml,
+      displayBarName,
+      formatNumber,
+      formatTime,
+      toggleLike,
 
-  const r = await window.pywebview.api.createComment(postId, content, null);
-  if (r && r.success) {
-    showNotification("评论成功", "success");
-    // 重新加载帖子详情以显示新评论
-    openPost(postId);
-  }
-  else showNotification("评论失败:" + (r && r.error), "error");
-}
+      // 模态框控制
+      showModal,
+      hideAllModals,
 
-async function submitCommentAction() {
-  // 获取评论内容
-  const content = document.getElementById("comment-content").value.trim();
+      // 判断函数
+      isBarFollowed,
 
-  // 检查评论内容是否为空
-  if (!content) {
-    showNotification("请输入评论内容", "error");
-    return;
-  }
+      // 数据加载函数
+      loadPostsInBar,
+      loadLatestPosts,
+      loadHotPosts,
+      refreshPosts,
+      openPost,
+      openPostInBar,
+      backToLatestPosts,
 
-  // 调用submitComment函数
-  await submitComment(currentPostId, content);
+      // 用户认证函数
+      submitLogin,
+      submitRegister,
+      logout,
 
-  // 清空评论框
-  document.getElementById("comment-content").value = "";
-}
+      // 贴吧相关函数
+      followBar,
+      unfollowBar,
+      submitCreateBar,
 
-async function likeComment(commentId) {
-  // 检查用户是否登录
-  if (!currentUser) {
-    showLoginPrompt();
-    return;
-  }
+      // 帖子相关函数
+      submitPost,
 
-  const r = await window.pywebview.api.likeComment(commentId);
-  if (r && r.success) showNotification("已点赞");
-  else showNotification("点赞失败");
-}
+      // 评论相关函数
+      submitComment,
+      likeComment,
 
-async function login() {
-  const u = document.getElementById("login-username").value.trim();
-  const p = document.getElementById("login-password").value;
-  const r = await window.pywebview.api.login(u, p);
-  if (r.success) {
-    currentUser = await window.pywebview.api.getCurrentUser();
-    document.getElementById("btn-login").style.display = "none";
-    document.getElementById("btn-register").style.display = "none";
-    document.getElementById("btn-logout").style.display = "inline-block";
-    hideAllModals();
-    loadUserBars();
-    showNotification("登录成功", "success");
-  } else {
-    showNotification("登录失败: " + (r.error || ""), "error");
-  }
-}
+      // 搜索函数
+      search,
 
-async function register() {
-  const u = document.getElementById("register-username").value.trim();
-  const p = document.getElementById("register-password").value;
-  const r = await window.pywebview.api.register(u, p);
-  if (r.success) {
-    hideAllModals();
-    showNotification("注册成功，请登录");
-  } else showNotification("注册失败: " + (r.error || ""), "error");
-}
+      // 打开创建贴吧模态框
+      createBar,
+    };
+  },
+};
 
-function logout() {
-  window.pywebview.api.logout();
-  currentUser = null;
-  document.getElementById("btn-login").style.display = "inline-block";
-  document.getElementById("btn-register").style.display = "inline-block";
-  document.getElementById("btn-logout").style.display = "none";
-  showNotification("已退出");
-}
+// 创建Vue应用
+// 确保DOM加载完成后再挂载Vue应用
+document.addEventListener("DOMContentLoaded", () => {
+  console.log("DOM loaded, creating Vue app...");
+  window.vueAppStatus.initialized = true;
 
-async function createBar() {
-  showModal("modal-create-bar");
-}
-
-async function submitCreateBar() {
-  // 检查用户是否登录
-  if (!currentUser) {
-    showLoginPrompt();
-    return;
-  }
-
-  const name = document.getElementById("bar-name").value.trim();
-  if (!name) {
-    showNotification("贴吧名称不能为空", "error");
-    return;
-  }
-
-  const r = await window.pywebview.api.createBar(name);
-  if (r.success) {
-    showNotification("创建成功", "success");
-    hideAllModals();
-    loadHotBars();
-    // 清空表单
-    document.getElementById("bar-name").value = "";
-    document.getElementById("bar-description").value = "";
-  } else {
-    showNotification("创建失败: " + (r.error || ""), "error");
-  }
-}
-
-async function followBar(barId) {
-  if (!currentUser) {
-    showLoginPrompt();
-    return;
-  }
-  const r = await window.pywebview.api.followBar(barId);
-  if (r && r.success) {
-    showNotification("关注成功", "success");
-    loadUserBars();
-  } else {
-    showNotification("关注失败", "error");
-  }
-}
-
-async function unfollowBar(barId) {
-  if (!currentUser) {
-    showNotification("请先登录", "error");
-    return;
-  }
-  const r = await window.pywebview.api.unfollowBar(barId);
-  if (r && r.success) {
-    showNotification("已取消关注", "success");
-    loadUserBars();
-  } else {
-    showNotification("取消关注失败", "error");
-  }
-}
-
-async function submitPost() {
-  // 检查用户是否登录
-  if (!currentUser) {
-    showLoginPrompt();
-    return;
-  }
-
-  const barId = document.getElementById("post-bar").value;
-  const title = document.getElementById("post-title").value.trim();
-  const content = document.getElementById("post-content").value.trim();
-  if (!title || !content) {
-    showNotification("标题与内容不能为空", "error");
-    return;
-  }
-  const r = await window.pywebview.api.createPost(
-    parseInt(barId),
-    title,
-    content
-  );
-  if (r.success) {
-    hideAllModals();
-    showNotification("发帖成功");
-    loadPostsInBar(barId);
-  } else showNotification("发帖失败:" + (r.error || ""));
-}
-
-function search() {
-  showNotification("搜索尚未实现");
-}
-
-async function loadLatestPosts() {
-  const posts = await window.pywebview.api.getLatestPosts(1, 20);
-  renderPosts(posts, null);
-}
-
-async function initApp() {
-  // 绑定按钮
-  document.getElementById("btn-login").onclick = () => showModal("modal-login");
-  document.getElementById("btn-register").onclick = () =>
-    showModal("modal-register");
-  document.getElementById("btn-logout").onclick = logout;
-  document.getElementById("login-submit").onclick = login;
-  document.getElementById("register-submit").onclick = register;
-  document.getElementById("btn-new-post").onclick = () =>
-    showModal("modal-post");
-  document.getElementById("post-submit").onclick = submitPost;
-  document.getElementById("btn-create-bar").onclick = createBar;
-  document.getElementById("create-bar-submit").onclick = submitCreateBar;
-  document.getElementById("comment-submit").onclick = submitCommentAction;
-
-  // load initial state
   try {
-    currentUser = await window.pywebview.api.getCurrentUser();
-    if (currentUser) {
-      document.getElementById("btn-login").style.display = "none";
-      document.getElementById("btn-register").style.display = "none";
-      document.getElementById("btn-logout").style.display = "inline-block";
-      loadUserBars();
-    }
-  } catch (e) {
-    console.error(e);
-  }
-  await loadHotBars();
-  await loadStats();
-  await loadLatestPosts();
-}
+    // 创建Vue应用实例但不立即挂载
+    const app = createApp(TiebaApp);
 
-// 页面加载完成后初始化
-window.addEventListener("pywebviewready", initApp);
+    // 等待pywebview准备好后再挂载
+    if (window.pywebview && window.pywebview.api) {
+      // pywebview已经准备好，直接挂载
+      console.log("pywebview ready, mounting Vue app...");
+      app.mount("#app");
+      window.vueAppStatus.mounted = true;
+
+      // 隐藏加载动画
+      setTimeout(() => {
+        const loadingScreen = document.getElementById("loading-screen");
+        if (loadingScreen) {
+          loadingScreen.style.opacity = "0";
+          setTimeout(() => {
+            loadingScreen.style.display = "none";
+          }, 500); // 等待淡出动画完成
+        }
+      }, 500); // 延迟一点时间，让应用完全加载
+    } else {
+      // 监听pywebviewready事件，然后挂载应用
+      console.log("Waiting for pywebview to be ready...");
+      window.addEventListener("pywebviewready", () => {
+        console.log("pywebviewready event fired, mounting Vue app...");
+        app.mount("#app");
+        window.vueAppStatus.mounted = true;
+
+        // 隐藏加载动画
+        setTimeout(() => {
+          const loadingScreen = document.getElementById("loading-screen");
+          if (loadingScreen) {
+            loadingScreen.style.opacity = "0";
+            setTimeout(() => {
+              loadingScreen.style.display = "none";
+            }, 500); // 等待淡出动画完成
+          }
+        }, 500); // 延迟一点时间，让应用完全加载
+      });
+    }
+  } catch (error) {
+    console.error("Failed to initialize Vue app:", error);
+    window.vueAppStatus.error = error;
+
+    // 即使出错也要隐藏加载动画，避免用户卡在加载界面
+    const loadingScreen = document.getElementById("loading-screen");
+    if (loadingScreen) {
+      loadingScreen.style.opacity = "0";
+      setTimeout(() => {
+        loadingScreen.style.display = "none";
+      }, 500);
+    }
+  }
+});

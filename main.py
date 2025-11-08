@@ -121,7 +121,23 @@ class Api:
         post = db.get_post_by_id(post_id)  # type: ignore
         if not post:
             return None
-        comments = db.get_comments_in_post(post_id, page=1, per_page=100)  # type: ignore
+
+        # 获取点赞数
+        try:
+            post["likes"] = db.get_post_likes(post_id)["likes"]  # type: ignore
+        except:
+            post["likes"] = 0
+
+        # 如果用户已登录，检查是否已点赞该帖子
+        if self.current_user_id:
+            try:
+                post["is_liked"] = db.check_post_liked(self.current_user_id, post_id)  # type: ignore
+            except:
+                post["is_liked"] = False
+        else:
+            post["is_liked"] = False
+
+        comments = db.get_comments_in_post(post_id, page=1, per_page=100, user_id=self.current_user_id)  # type: ignore
         post["comments"] = comments
         return post
 
@@ -132,18 +148,24 @@ class Api:
 
     def likeComment(self, comment_id):
         self._ensure_logged_in()
-        db.like_comment(comment_id)  # type: ignore
-        return {"success": True}
+        result = db.like_comment(self.current_user_id, comment_id)  # type: ignore
+        return result
+
+    def toggleLike(self, post_id):
+        """切换帖子点赞状态（点赞或取消点赞）"""
+        self._ensure_logged_in()
+        result = db.toggle_post_like(self.current_user_id, post_id)  # type: ignore
+        return result
 
     def getUserById(self, user_id):
         return db.get_user_by_id(user_id)  # type: ignore
 
     def getPostsInBar(self, bar_id, page=1, per_page=20):
-        posts = db.get_posts_in_bar(bar_id, page, per_page)
+        posts = db.get_posts_in_bar(bar_id, page, per_page, self.current_user_id)  # type: ignore
         return posts
 
     def getCommentsInPost(self, post_id, page=1, per_page=50):
-        return db.get_comments_in_post(post_id, page, per_page)
+        return db.get_comments_in_post(post_id, page, per_page, user_id=self.current_user_id)
 
     def getHotBars(self, limit=10):
         return db.get_hot_bars(limit)
@@ -171,7 +193,13 @@ class Api:
 
     def getLatestPosts(self, page=1, per_page=20):
         """获取最新帖子（分页）"""
-        return db.get_latest_posts(page, per_page)  # type: ignore
+        return db.get_latest_posts(page, per_page, self.current_user_id)  # type: ignore
+        
+    def searchPosts(self, query):
+        """搜索帖子"""
+        if not query or not query.strip():
+            return []
+        return db.search_posts(query.strip(), self.current_user_id)  # type: ignore
 
 
 main_window = webview.create_window(
