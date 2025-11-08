@@ -261,35 +261,65 @@ const TiebaApp = {
         // 获取所有帖子
         const allPosts = await window.pywebview.api.getLatestPosts(1, 1000);
 
-        // 确保每个帖子都有正确的点赞数和评论数
+        // 确保每个帖子都有正确的属性
         allPosts.forEach((post) => {
           post.likes = post.likes || post.like_count || 0;
           post.comments_count = post.comments_count || post.comment_count || 0;
           // 确保每个帖子都有is_liked属性
           post.is_liked = post.is_liked || false;
+          // 确保created_at属性存在，用于热度计算
+          if (!post.created_at && post.create_time) {
+            post.created_at = post.create_time;
+          }
         });
 
-        // 计算每个帖子的热度（点赞数 * 2 + 评论数）
+        // 计算每个帖子的热度（综合点赞数、评论数和时间因素）
         const postsWithHotness = allPosts.map((post) => {
           const likes = post.likes || 0;
           const comments = post.comments_count || 0;
-          // 热度计算：点赞数权重更高，同时考虑时间因素
+          // 热度计算：综合考虑点赞数、评论数和时间因素
           // 发布时间越新，热度越高（按天数衰减）
           const now = new Date();
           const postDate = new Date(post.created_at);
-          const daysDiff = Math.max(
+          const hoursDiff = Math.max(
             1,
-            Math.floor((now - postDate) / (1000 * 60 * 60 * 24))
+            Math.floor((now - postDate) / (1000 * 60 * 60)) // 以小时为单位
           );
-          const timeFactor = 1 / Math.log(daysDiff + 1); // 对数衰减，越新衰减越小
+          
+          // 时间衰减因子：24小时内发布的帖子时间因子为1，之后按指数衰减
+          let timeFactor;
+          if (hoursDiff <= 24) {
+            timeFactor = 1.0; // 24小时内发布的帖子，时间因子为1
+          } else {
+            // 超过24小时的帖子，按天数对数衰减
+            const daysDiff = Math.floor(hoursDiff / 24);
+            timeFactor = 1 / Math.log(daysDiff + 2); // 使用+2确保衰减不会太快
+          }
 
-          // 综合热度计算：基础热度(点赞*2+评论) * 时间因子
-          post.hotness = (likes * 2 + comments) * timeFactor;
+          // 综合热度计算：
+          // 1. 基础热度：点赞数 * 1.5 + 评论数 * 1（点赞权重略高）
+          // 2. 应用时间因子：新帖子的热度更高
+          const baseHotness = likes * 1.5 + comments;
+          post.hotness = baseHotness * timeFactor;
+          
+          // 调试输出，确保热度计算正确
+          if (reset && state.currentPage === 1) {
+            console.log(`帖子ID: ${post.id}, 点赞: ${likes}, 评论: ${comments}, 时间因子: ${timeFactor}, 热度: ${post.hotness}`);
+          }
+          
           return post;
         });
 
         // 按热度降序排序
         postsWithHotness.sort((a, b) => b.hotness - a.hotness);
+        
+        // 调试输出，检查排序是否正确
+        if (reset && state.currentPage === 1) {
+          console.log("排序后的前5个帖子:");
+          for (let i = 0; i < Math.min(5, postsWithHotness.length); i++) {
+            console.log(`#${i+1} 帖子ID: ${postsWithHotness[i].id}, 热度: ${postsWithHotness[i].hotness}`);
+          }
+        }
 
         // 获取当前页的帖子
         const startIndex = (state.currentPage - 1) * 20;

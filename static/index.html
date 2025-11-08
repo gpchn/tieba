@@ -196,8 +196,8 @@
             </div>
 
             <div class="posts-container">
-              <div v-if="state.posts.length === 0" class="empty-state d-flex flex-column justify-content-center align-items-center" style="height: 60vh;">
-                <i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 1rem;"></i>
+              <div v-if="state.posts.length === 0" class="empty-state">
+                <i class="fas fa-inbox"></i>
                 <p>暂无帖子</p>
               </div>
               <div
@@ -603,7 +603,7 @@
       </footer>
     </div>
 
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="js/vue.global.prod.js"></script>
     <script src="js/main.js"></script>
   </body>
 </html>

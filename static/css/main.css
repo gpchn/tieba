@@ -533,11 +533,18 @@ body {
 
 /* 空状态样式 */
 .empty-state {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 60vh;
   color: var(--text-secondary);
   text-align: center;
 }
 
 .empty-state i {
+  font-size: 3rem;
+  margin-bottom: 1rem;
   color: var(--text-light);
 }
 
