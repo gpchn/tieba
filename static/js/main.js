@@ -23,30 +23,49 @@ function hideAllModals() {
 
 async function loadHotBars() {
   const bars = await window.pywebview.api.getHotBars(20);
+  const userBars = await window.pywebview.api.getFollowedBars();
+  console.log("获取到的用户关注贴吧:", userBars);
+  const userBarIds = userBars && userBars.length > 0 ? new Set(userBars.map(b => b.id)) : new Set();
+
+  // 检查用户是否登录
+  const currentUser = await window.pywebview.api.getCurrentUser();
+  const isLoggedIn = !!currentUser;
+  console.log("用户登录状态:", isLoggedIn, "当前用户:", currentUser);
+
   const ul = document.getElementById("hot-bars");
   ul.innerHTML = "";
   for (const b of bars) {
     const li = document.createElement("li");
     li.className = "bar-item";
+
+    // 根据登录状态和关注状态显示不同按钮
+    let buttonHtml = "";
+    if (isLoggedIn) {
+      const isFollowed = userBarIds.has(b.id);
+      buttonHtml = isFollowed 
+        ? `<button class="btn-unfollow" onclick="unfollowBar(${b.id})">取消关注</button>`
+        : `<button class="btn-follow" onclick="followBar(${b.id})">关注</button>`;
+    } else {
+      buttonHtml = `<button class="btn-follow" onclick="showLoginPrompt()">关注</button>`;
+    }
+
     li.innerHTML = `<div class="bar-name">${escapeHtml(
       b.name
     )}</div><div class="bar-count">${
       b.post_count || 0
-    }</div><button class="btn-follow" onclick="followBar(${
-      b.id
-    })">关注</button>`;
+    }</div>${buttonHtml}`;
     li.onclick = (e) => {
-      if (e.target.className !== "btn-follow") {
+      if (e.target.className !== "btn-follow" && e.target.className !== "btn-unfollow") {
         loadPostsInBar(b.id);
       }
     };
     ul.appendChild(li);
   }
-  // also populate post-bar select
+  // also populate post-bar select with only followed bars
   const sel = document.getElementById("post-bar");
   if (sel) {
     sel.innerHTML = "";
-    for (const b of bars) {
+    for (const b of userBars) {  // 只显示已关注的贴吧
       const opt = document.createElement("option");
       opt.value = b.id;
       opt.text = b.name;

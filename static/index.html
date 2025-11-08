@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="css/fa.all.min.css" />
   </head>
   <body>
-    <div class="app-container">
+    <div id="app" class="app-container">
       <!-- 顶部导航栏 -->
       <header class="navbar">
         <div class="nav-container">
@@ -25,9 +25,10 @@
               <input
                 type="text"
                 id="search"
+                v-model="searchQuery"
                 placeholder="搜索帖子、用户或话题..."
               />
-              <button class="search-btn" onclick="search()" title="搜索">
+              <button class="search-btn" @click="search" title="搜索">
                 <i class="fas fa-search"></i>
               </button>
             </div>
@@ -35,20 +36,20 @@
 
           <div class="nav-actions">
             <div class="action-buttons">
-              <button class="btn-create-post" id="btn-new-post">
+              <button class="btn-create-post" @click="showModal('post')">
                 <i class="fas fa-plus"></i>
                 <span>发帖</span>
               </button>
-              <button class="btn-create-bar" id="btn-create-bar">
+              <button class="btn-create-bar" @click="createBar">
                 <i class="fas fa-plus-circle"></i>
                 <span>创建贴吧</span>
               </button>
             </div>
 
             <div class="user-menu">
-              <button class="btn-login" id="btn-login">登录</button>
-              <button class="btn-register" id="btn-register">注册</button>
-              <button class="btn-logout" id="btn-logout" style="display: none">
+              <button v-if="!isLoggedIn" class="btn-login" @click="showModal('login')">登录</button>
+              <button v-if="!isLoggedIn" class="btn-register" @click="showModal('register')">注册</button>
+              <button v-else class="btn-logout" @click="logout">
                 <i class="fas fa-sign-out-alt"></i>
                 <span>登出</span>
               </button>
@@ -67,7 +68,15 @@
                 <i class="fas fa-fire"></i>
                 热门贴吧
               </h3>
-              <ul id="hot-bars" class="bars-list"></ul>
+              <ul class="bars-list">
+                <li v-for="bar in state.hotBars" :key="bar.id" class="bar-item" @click="loadPostsInBar(bar.id)">
+                  <div class="bar-name">{{ escapeHtml(bar.name) }}</div>
+                  <div class="bar-count">{{ bar.post_count || 0 }}</div>
+                  <button v-if="isLoggedIn && !isBarFollowed(bar.id)" class="btn-follow" @click.stop="followBar(bar.id)">关注</button>
+                  <button v-else-if="isLoggedIn && isBarFollowed(bar.id)" class="btn-unfollow" @click.stop="unfollowBar(bar.id)">取消关注</button>
+                  <button v-else class="btn-follow" @click.stop="showModal('login')">关注</button>
+                </li>
+              </ul>
             </div>
 
             <div class="sidebar-section">
@@ -75,7 +84,12 @@
                 <i class="fas fa-star"></i>
                 我的关注
               </h3>
-              <ul id="user-bars" class="bars-list"></ul>
+              <ul class="bars-list">
+                <li v-for="bar in state.userBars" :key="bar.id" class="bar-item small" @click="loadPostsInBar(bar.id)">
+                  <div class="bar-name">{{ escapeHtml(bar.name) }}</div>
+                  <button class="btn-unfollow" @click.stop="unfollowBar(bar.id)">取消关注</button>
+                </li>
+              </ul>
             </div>
           </aside>
 
@@ -87,10 +101,35 @@
                 <button class="filter-btn active">全部</button>
                 <button class="filter-btn">热门</button>
                 <button class="filter-btn">精华</button>
+                <button class="filter-btn" @click="testVue">测试Vue</button>
               </div>
             </div>
 
-            <div id="posts-list" class="posts-container"></div>
+            <div class="posts-container">
+              <div v-if="state.posts.length === 0" class="empty-state"><i class="fas fa-inbox"></i><p>暂无帖子</p></div>
+              <div v-for="(post, index) in state.posts" :key="post.id" class="post" :data-index="index">
+                <div class="post-header">
+                  <div class="post-avatar">{{ post.author_name ? post.author_name.charAt(0).toUpperCase() : "U" }}</div>
+                  <div class="post-meta">
+                    <div class="post-author">{{ escapeHtml(post.author_name || "匿名用户") }}</div>
+                    <div class="post-time">{{ formatTime(post.create_time) }}</div>
+                  </div>
+                </div>
+                <h3 class="post-title">{{ escapeHtml(post.title) }}</h3>
+                <div class="post-content">{{ escapeHtml(post.content ? post.content.slice(0, 200) + (post.content.length > 200 ? "..." : "") : "") }}</div>
+                <div class="post-footer">
+                  <div class="post-stats">
+                    <span class="stat"><i class="fas fa-comment"></i> {{ post.comment_count || 0 }}</span>
+                    <span class="stat"><i class="fas fa-heart"></i> {{ post.like_count || 0 }}</span>
+                  </div>
+                  <div class="post-actions">
+                    <button class="btn btn-primary" @click="openPost(post.id)">
+                      <i class="fas fa-arrow-right"></i> 查看详情
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             <div class="load-more">
               <button class="load-more-btn">加载更多</button>
@@ -120,15 +159,15 @@
               </h3>
               <div class="stats">
                 <div class="stat-item">
-                  <span class="stat-value" id="stat-posts">-</span>
+                  <span class="stat-value">{{ formatNumber(state.stats.posts || 0) }}</span>
                   <span class="stat-label">帖子总数</span>
                 </div>
                 <div class="stat-item">
-                  <span class="stat-value" id="stat-users">-</span>
+                  <span class="stat-value">{{ formatNumber(state.stats.users || 0) }}</span>
                   <span class="stat-label">用户总数</span>
                 </div>
                 <div class="stat-item">
-                  <span class="stat-value" id="stat-comments">-</span>
+                  <span class="stat-value">{{ formatNumber(state.stats.comments || 0) }}</span>
                   <span class="stat-label">评论总数</span>
                 </div>
               </div>
@@ -138,11 +177,11 @@
       </main>
 
       <!-- 登录模态框 -->
-      <div id="modal-login" class="modal">
+      <div v-if="state.modals.login" class="modal show">
         <div class="modal-content">
           <div class="modal-header">
             <h3 class="modal-title">登录账号</h3>
-            <button class="modal-close" onclick="hideAllModals()" title="关闭">
+            <button class="modal-close" @click="hideAllModals()" title="关闭">
               <i class="fas fa-times"></i>
             </button>
           </div>
@@ -152,6 +191,7 @@
               <input
                 type="text"
                 id="login-username"
+                v-model="loginForm.username"
                 placeholder="请输入用户名"
               />
             </div>
@@ -160,13 +200,15 @@
               <input
                 type="password"
                 id="login-password"
+                v-model="loginForm.password"
                 placeholder="请输入密码"
+                @keyup.enter="submitLogin"
               />
             </div>
           </div>
           <div class="modal-footer">
-            <button id="login-submit" class="btn btn-primary">登录</button>
-            <button onclick="hideAllModals()" class="btn btn-secondary">
+            <button @click="submitLogin" class="btn btn-primary">登录</button>
+            <button @click="hideAllModals" class="btn btn-secondary">
               取消
             </button>
           </div>
@@ -174,11 +216,11 @@
       </div>
 
       <!-- 注册模态框 -->
-      <div id="modal-register" class="modal">
+      <div v-if="state.modals.register" class="modal show">
         <div class="modal-content">
           <div class="modal-header">
             <h3 class="modal-title">注册账号</h3>
-            <button class="modal-close" onclick="hideAllModals()" title="关闭">
+            <button class="modal-close" @click="hideAllModals()" title="关闭">
               <i class="fas fa-times"></i>
             </button>
           </div>
@@ -188,7 +230,9 @@
               <input
                 type="text"
                 id="register-username"
+                v-model="registerForm.username"
                 placeholder="请输入用户名"
+                @keyup.enter="submitRegister"
               />
             </div>
             <div class="form-group">
@@ -196,13 +240,15 @@
               <input
                 type="password"
                 id="register-password"
+                v-model="registerForm.password"
                 placeholder="请输入密码"
+                @keyup.enter="submitRegister"
               />
             </div>
           </div>
           <div class="modal-footer">
-            <button id="register-submit" class="btn btn-primary">注册</button>
-            <button onclick="hideAllModals()" class="btn btn-secondary">
+            <button @click="submitRegister" class="btn btn-primary">注册</button>
+            <button @click="hideAllModals" class="btn btn-secondary">
               取消
             </button>
           </div>
@@ -210,34 +256,37 @@
       </div>
 
       <!-- 发帖模态框 -->
-      <div id="modal-post" class="modal">
+      <div v-if="state.modals.post" class="modal show">
         <div class="modal-content modal-large">
           <div class="modal-header">
             <h3 class="modal-title">发布新帖</h3>
-            <button class="modal-close" onclick="hideAllModals()" title="关闭">
+            <button class="modal-close" @click="hideAllModals()" title="关闭">
               <i class="fas fa-times"></i>
             </button>
           </div>
           <div class="modal-body">
             <div class="form-group">
               <label for="post-bar">选择贴吧</label>
-              <select id="post-bar"></select>
+              <select id="post-bar" v-model="postForm.barId">
+                <option v-for="bar in state.userBars" :key="bar.id" :value="bar.id">{{ bar.name }}</option>
+              </select>
             </div>
             <div class="form-group">
               <label for="post-title">标题</label>
-              <input type="text" id="post-title" placeholder="请输入帖子标题" />
+              <input type="text" id="post-title" v-model="postForm.title" placeholder="请输入帖子标题" />
             </div>
             <div class="form-group">
               <label for="post-content">内容</label>
               <textarea
                 id="post-content"
+                v-model="postForm.content"
                 placeholder="分享您的想法..."
               ></textarea>
             </div>
           </div>
           <div class="modal-footer">
-            <button id="post-submit" class="btn btn-primary">发布</button>
-            <button onclick="hideAllModals()" class="btn btn-secondary">
+            <button @click="submitPost" class="btn btn-primary">发布</button>
+            <button @click="hideAllModals" class="btn btn-secondary">
               取消
             </button>
           </div>
@@ -245,30 +294,31 @@
       </div>
 
       <!-- 创建贴吧模态框 -->
-      <div id="modal-create-bar" class="modal">
+      <div v-if="state.modals.createBar" class="modal show">
         <div class="modal-content">
           <div class="modal-header">
             <h3 class="modal-title">创建贴吧</h3>
-            <button class="modal-close" onclick="hideAllModals()" title="关闭">
+            <button class="modal-close" @click="hideAllModals()" title="关闭">
               <i class="fas fa-times"></i>
             </button>
           </div>
           <div class="modal-body">
             <div class="form-group">
               <label for="bar-name">贴吧名称</label>
-              <input type="text" id="bar-name" placeholder="请输入贴吧名称" />
+              <input type="text" id="bar-name" v-model="createBarForm.name" placeholder="请输入贴吧名称" />
             </div>
             <div class="form-group">
               <label for="bar-description">贴吧简介</label>
               <textarea
                 id="bar-description"
+                v-model="createBarForm.description"
                 placeholder="请输入贴吧简介（可选）"
               ></textarea>
             </div>
           </div>
           <div class="modal-footer">
-            <button id="create-bar-submit" class="btn btn-primary">创建</button>
-            <button onclick="hideAllModals()" class="btn btn-secondary">
+            <button @click="submitCreateBar" class="btn btn-primary">创建</button>
+            <button @click="hideAllModals" class="btn btn-secondary">
               取消
             </button>
           </div>
@@ -276,37 +326,63 @@
       </div>
 
       <!-- 帖子详情模态框 -->
-      <div id="modal-post-detail" class="modal">
+      <div v-if="state.modals.postDetail" class="modal show">
         <div class="modal-content modal-large">
           <div class="modal-header">
-            <h3 class="modal-title" id="detail-title">帖子详情</h3>
-            <button class="modal-close" onclick="hideAllModals()" title="关闭">
+            <h3 class="modal-title">{{ state.currentPost ? escapeHtml(state.currentPost.title) : "帖子详情" }}</h3>
+            <button class="modal-close" @click="hideAllModals()" title="关闭">
               <i class="fas fa-times"></i>
             </button>
           </div>
-          <div class="modal-body">
+          <div class="modal-body" v-if="state.currentPost">
             <div class="post-detail-header">
               <div class="post-detail-meta">
-                <span id="detail-author"></span>
-                <span id="detail-time"></span>
+                <span>作者: {{ state.currentPost.author_name || state.currentPost.author_id }}</span>
+                <span>{{ formatTime(state.currentPost.create_time) }}</span>
               </div>
             </div>
-            <div class="post-detail-content" id="detail-content"></div>
+            <div class="post-detail-content">{{ state.currentPost.content }}</div>
 
             <div class="comments-section">
               <h4>评论</h4>
-              <div id="comments-list"></div>
+              <div class="comments-list">
+                <div v-if="state.comments.length === 0" class="empty-state">暂无评论</div>
+                <div v-for="comment in state.comments" :key="comment.id" class="comment">
+                  <div class="comment-content">{{ escapeHtml(comment.content) }}</div>
+                  <div class="comment-meta">
+                    <div class="comment-author">
+                      {{ comment.author_name }}<span class="comment-time">{{ formatTime(comment.create_time) }}</span>
+                    </div>
+                    <div class="comment-actions">
+                      <span class="comment-likes">{{ comment.likes || 0 }}</span>
+                      <button 
+                        class="comment-like-btn" 
+                        :class="{ 'liked': comment.liked_by_user }"
+                        @click="likeComment(comment.id)"
+                      >
+                        <i :class="comment.liked_by_user ? 'fas fa-thumbs-up' : 'far fa-thumbs-up'"></i> 
+                        {{ comment.liked_by_user ? '已点赞' : '点赞' }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-              <div class="comment-form" id="comment-form">
+              <div class="comment-form" v-if="isLoggedIn">
                 <div class="form-group">
                   <textarea
                     id="comment-content"
+                    v-model="commentForm.content"
                     placeholder="写下您的评论..."
+                    @keyup.ctrl.enter="submitComment"
                   ></textarea>
                 </div>
-                <button id="comment-submit" class="btn btn-primary">
+                <button @click="submitComment" class="btn btn-primary">
                   发表评论
                 </button>
+              </div>
+              <div v-else class="login-prompt">
+                <p>请<a href="#" @click.prevent="showModal('login')">登录</a>后发表评论</p>
               </div>
             </div>
           </div>
@@ -349,6 +425,7 @@
       </footer>
     </div>
 
-    <script src="js/main.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="js/vue-app.js"></script>
   </body>
 </html>

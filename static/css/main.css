@@ -610,16 +610,17 @@ body {
   transition: opacity 0.3s ease, visibility 0.3s ease;
 }
 
+/* 显示模态框的类 */
+.modal.show {
+  opacity: 1;
+  visibility: visible;
+}
+
 /* 修复模态框显示时的居中问题 */
 .modal[style*="block"] {
   opacity: 1;
   visibility: visible;
   display: flex !important;
-}
-
-.modal[style*="block"] {
-  opacity: 1;
-  visibility: visible;
 }
 
 .modal-content {

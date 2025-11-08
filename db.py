@@ -130,8 +130,10 @@ SELECT id, name, owner_id, create_time FROM bars WHERE name = %s
 
 # 查询帖子
 GET_POST_BY_ID_COMMAND = """
-SELECT id, bar_id, title, content, author_id, create_time
-FROM posts WHERE id = %s
+SELECT p.id, p.bar_id, p.title, p.content, p.author_id, p.create_time, u.name as author_name
+FROM posts p
+JOIN users u ON p.author_id = u.id
+WHERE p.id = %s
 """
 
 # 查询用户
@@ -141,9 +143,11 @@ SELECT id, type, name, exp FROM users WHERE id = %s
 
 # 查询贴吧的所有帖子
 GET_POSTS_IN_BAR_COMMAND = """
-SELECT id, title, author_id, create_time
-FROM posts WHERE bar_id = %s
-ORDER BY create_time DESC
+SELECT p.id, p.title, p.author_id, p.create_time, p.content, u.name as author_name
+FROM posts p
+JOIN users u ON p.author_id = u.id
+WHERE p.bar_id = %s
+ORDER BY p.create_time DESC
 LIMIT %s OFFSET %s
 """
 
