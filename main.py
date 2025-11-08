@@ -4,6 +4,8 @@
 import webview
 from pathlib import Path
 import db
+import json
+import os
 
 
 ROOT_DIR = Path(__file__).parent
@@ -15,6 +17,50 @@ class Api:
     def __init__(self):
         # 简单的内存会话，仅用于桌面应用示例
         self.current_user_id = None
+        self.session_file = str(USER_DATA_DIR / "session.json")  # 转换为字符串
+        # 确保用户数据目录存在
+        os.makedirs(USER_DATA_DIR, exist_ok=True)
+        # 初始化时尝试加载已保存的会话
+        self._load_session()
+
+    def _load_session(self):
+        """从文件加载会话信息并尝试自动登录"""
+        try:
+            if os.path.exists(self.session_file):  # 使用os.path.exists替代Path.exists
+                with open(self.session_file, "r", encoding="utf-8") as f:
+                    session_data = json.load(f)
+                    username = session_data.get("username")
+                    password = session_data.get("password")
+
+                    if username and password:
+                        # 尝试自动登录
+                        user_id = db.login_user(username, password)  # type: ignore
+                        if user_id:
+                            self.current_user_id = user_id
+                            return {
+                                "success": True,
+                                "auto_login": True,
+                                "user_id": user_id,
+                            }
+                        else:
+                            # 密码错误，清除会话
+                            os.remove(self.session_file)
+                            return {
+                                "success": False,
+                                "error": "保存的密码已失效，请重新登录",
+                            }
+        except Exception as e:
+            print(f"加载会话失败: {e}")
+            self.current_user_id = None
+        return {"success": False, "error": "未找到有效的登录信息"}
+
+    def _save_session(self, username, password):
+        """保存用户名和密码到文件"""
+        try:
+            with open(self.session_file, "w", encoding="utf-8") as f:
+                json.dump({"username": username, "password": password}, f)
+        except Exception as e:
+            print(f"保存会话失败: {e}")
 
     def _ensure_logged_in(self):
         if not self.current_user_id:
@@ -25,6 +71,8 @@ class Api:
         user_id = db.login_user(username, password)  # type: ignore
         if user_id:
             self.current_user_id = user_id
+            # 保存用户名和密码以便自动登录
+            self._save_session(username, password)
             return {"success": True, "user_id": user_id}
         else:
             return {"success": False, "error": "用户名或密码错误"}
@@ -36,6 +84,12 @@ class Api:
 
     def logout(self):
         self.current_user_id = None
+        # 清除保存的会话
+        try:
+            if os.path.exists(self.session_file):  # 使用os.path.exists替代Path.exists
+                os.remove(self.session_file)  # 使用os.remove替代Path.unlink
+        except Exception as e:
+            print(f"清除会话失败: {e}")
         return {"success": True}
 
     def getCurrentUser(self):
@@ -44,6 +98,10 @@ class Api:
             return None
         user = db.get_user_by_id(self.current_user_id)  # type: ignore
         return user
+
+    def getAutoLoginStatus(self):
+        """获取自动登录状态"""
+        return self._load_session()
 
     def createBar(self, name):
         """创建贴吧（需要登录）"""
