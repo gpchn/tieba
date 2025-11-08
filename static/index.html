@@ -9,7 +9,15 @@
     <link rel="stylesheet" href="css/fa.all.min.css" />
   </head>
   <body>
-    <div id="app" class="app-container">
+    <!-- 加载动画 -->
+    <div id="loading-screen" class="loading-screen">
+      <div class="loading-spinner">
+        <div class="spinner"></div>
+        <p class="loading-text">四中贴吧加载中...</p>
+      </div>
+    </div>
+
+    <div id="app" class="app-container" v-show="vueAppStatus.mounted">
       <!-- 顶部导航栏 -->
       <header class="navbar">
         <div class="nav-container">
@@ -36,10 +44,7 @@
 
           <div class="nav-actions">
             <div class="action-buttons">
-              <button class="btn-create-post" @click="showModal('post')">
-                <i class="fas fa-plus"></i>
-                <span>发帖</span>
-              </button>
+
               <button class="btn-create-bar" @click="createBar">
                 <i class="fas fa-plus-circle"></i>
                 <span>创建贴吧</span>
@@ -70,7 +75,7 @@
               </h3>
               <ul class="bars-list">
                 <li v-for="bar in state.hotBars" :key="bar.id" class="bar-item" @click="loadPostsInBar(bar.id)">
-                  <div class="bar-name">{{ escapeHtml(bar.name) }}</div>
+                  <div class="bar-name">{{ displayBarName(bar.name) }}</div>
                   <div class="bar-count">{{ bar.post_count || 0 }}</div>
                   <button v-if="isLoggedIn && !isBarFollowed(bar.id)" class="btn-follow" @click.stop="followBar(bar.id)">关注</button>
                   <button v-else-if="isLoggedIn && isBarFollowed(bar.id)" class="btn-unfollow" @click.stop="unfollowBar(bar.id)">取消关注</button>
@@ -86,8 +91,13 @@
               </h3>
               <ul class="bars-list">
                 <li v-for="bar in state.userBars" :key="bar.id" class="bar-item small" @click="loadPostsInBar(bar.id)">
-                  <div class="bar-name">{{ escapeHtml(bar.name) }}</div>
-                  <button class="btn-unfollow" @click.stop="unfollowBar(bar.id)">取消关注</button>
+                  <div class="bar-name">{{ displayBarName(bar.name) }}</div>
+                  <div class="bar-actions">
+                    <button class="btn-post" @click.stop="openPostInBar(bar.id)" title="在此贴吧发帖">
+                      <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn-unfollow" @click.stop="unfollowBar(bar.id)">取消关注</button>
+                  </div>
                 </li>
               </ul>
             </div>
@@ -96,12 +106,25 @@
           <!-- 中间内容区 -->
           <section class="content-area">
             <div class="content-header">
-              <h2 class="page-title">最新帖子</h2>
-              <div class="filter-options">
-                <button class="filter-btn active">全部</button>
-                <button class="filter-btn">热门</button>
-                <button class="filter-btn">精华</button>
-                <button class="filter-btn" @click="testVue">测试Vue</button>
+              <div class="content-title">
+                <h2 class="page-title">{{ state.currentBar ? displayBarName(state.currentBar.name) : '最新帖子' }}</h2>
+                <div class="content-actions">
+                  <button v-if="state.currentBar" class="btn-post-in-bar" @click="openPostInBar(state.currentBar.id)" title="在此贴吧发帖">
+                    <i class="fas fa-edit"></i>
+                    <span>发帖</span>
+                  </button>
+                  <button v-if="state.currentBar" class="btn-back-to-posts" @click="backToLatestPosts" title="回到最新帖子">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>最新帖子</span>
+                  </button>
+                </div>
+              </div>
+              <div v-if="!state.currentBar" class="filter-options">
+                <button class="filter-btn active" @click="loadLatestPosts">全部</button>
+                <button class="filter-btn" @click="loadHotPosts">热门</button>
+                <button class="refresh-btn" @click="refreshPosts" title="刷新帖子">
+                  <i class="fas fa-sync-alt"></i>
+                </button>
               </div>
             </div>
 
@@ -144,6 +167,7 @@
                 使用提示
               </h3>
               <p>欢迎来到四中贴吧！在这里您可以：</p>
+              <br>
               <ul class="tips-list">
                 <li>浏览热门话题和帖子</li>
                 <li>关注感兴趣的贴吧</li>
@@ -266,12 +290,6 @@
           </div>
           <div class="modal-body">
             <div class="form-group">
-              <label for="post-bar">选择贴吧</label>
-              <select id="post-bar" v-model="postForm.barId">
-                <option v-for="bar in state.userBars" :key="bar.id" :value="bar.id">{{ bar.name }}</option>
-              </select>
-            </div>
-            <div class="form-group">
               <label for="post-title">标题</label>
               <input type="text" id="post-title" v-model="postForm.title" placeholder="请输入帖子标题" />
             </div>
@@ -305,7 +323,11 @@
           <div class="modal-body">
             <div class="form-group">
               <label for="bar-name">贴吧名称</label>
-              <input type="text" id="bar-name" v-model="createBarForm.name" placeholder="请输入贴吧名称" />
+              <div class="input-with-suffix">
+                <input type="text" id="bar-name" v-model="createBarForm.name" placeholder="请输入贴吧名称" />
+                <span class="input-suffix">吧</span>
+              </div>
+              <div class="form-hint">无需在名称末尾输入"吧"字</div>
             </div>
             <div class="form-group">
               <label for="bar-description">贴吧简介</label>

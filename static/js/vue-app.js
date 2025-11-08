@@ -30,6 +30,7 @@ const TiebaApp = {
       posts: [],
       currentPost: null,
       comments: [],
+      currentBar: null, // 当前选中的贴吧
       stats: {
         posts: 0,
         users: 0,
@@ -75,6 +76,15 @@ const TiebaApp = {
         /[&<>"]/g,
         (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])
       );
+    };
+    
+    // 显示贴吧名称，自动添加'吧'字
+    const displayBarName = (name) => {
+      if (!name) return '';
+      // 如果名称已经以'吧'结尾，直接返回
+      if (name.endsWith('吧')) return name;
+      // 否则添加'吧'字
+      return name + '吧';
     };
 
     const formatNumber = (num) => {
@@ -184,20 +194,95 @@ const TiebaApp = {
       try {
         const posts = await window.pywebview.api.getLatestPosts(1, 20);
         state.posts = posts || [];
+        // 更新页面标题
+        document.querySelector('.page-title').textContent = '最新帖子';
+        // 更新按钮激活状态
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+          btn.classList.remove('active');
+        });
+        document.querySelector('.filter-btn:first-child').classList.add('active');
       } catch (error) {
         console.error("加载最新帖子失败:", error);
         showNotification("加载最新帖子失败", "error");
       }
     };
 
+    const loadHotPosts = async () => {
+      try {
+        const posts = await window.pywebview.api.getHotPosts(1, 20);
+        state.posts = posts || [];
+        // 更新页面标题
+        document.querySelector('.page-title').textContent = '热门帖子';
+        // 更新按钮激活状态
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+          btn.classList.remove('active');
+        });
+        document.querySelector('.filter-btn:nth-child(2)').classList.add('active');
+        showNotification("已加载热门帖子", "success");
+      } catch (error) {
+        console.error("加载热门帖子失败:", error);
+        showNotification("加载热门帖子失败", "error");
+      }
+    };
+
+    const refreshPosts = async () => {
+      // 添加旋转动画类
+      const refreshBtn = document.querySelector('.refresh-btn i');
+      if (refreshBtn) {
+        refreshBtn.classList.add('fa-spin');
+      }
+      
+      try {
+        // 获取当前页面标题，判断当前是哪种帖子列表
+        const pageTitle = document.querySelector('.page-title').textContent;
+        
+        if (pageTitle.includes('最新')) {
+          await loadLatestPosts();
+        } else if (pageTitle.includes('热门')) {
+          await loadHotPosts();
+        } else {
+          // 默认加载最新帖子
+          await loadLatestPosts();
+        }
+        
+        showNotification("帖子已刷新", "success");
+      } catch (error) {
+        console.error("刷新帖子失败:", error);
+        showNotification("刷新帖子失败", "error");
+      } finally {
+        // 移除旋转动画类
+        if (refreshBtn) {
+          setTimeout(() => {
+            refreshBtn.classList.remove('fa-spin');
+          }, 500);
+        }
+      }
+    };
+
     const loadPostsInBar = async (barId) => {
       try {
+        // 查找贴吧信息
+        const bar = state.userBars.find(b => b.id === barId) || 
+                   state.hotBars.find(b => b.id === barId);
+        
+        if (bar) {
+          // 设置当前贴吧
+          state.currentBar = bar;
+        }
+        
         const posts = await window.pywebview.api.getPostsInBar(barId, 1, 50);
         state.posts = posts || [];
       } catch (error) {
         console.error("加载贴吧帖子失败:", error);
         showNotification("加载贴吧帖子失败", "error");
       }
+    };
+    
+    const backToLatestPosts = () => {
+      // 清除当前贴吧
+      state.currentBar = null;
+      // 加载最新帖子
+      loadLatestPosts();
     };
 
     const openPost = async (postId) => {
@@ -341,9 +426,16 @@ const TiebaApp = {
         showNotification("贴吧名称不能为空", "error");
         return;
       }
+      
+      // 确保贴吧名称不以'吧'结尾
+      let barName = createBarForm.name.trim();
+      if (barName.endsWith('吧')) {
+        barName = barName.slice(0, -1);
+        createBarForm.name = barName;
+      }
 
       try {
-        const result = await window.pywebview.api.createBar(createBarForm.name);
+        const result = await window.pywebview.api.createBar(barName);
         if (result.success) {
           showNotification("创建成功", "success");
           hideAllModals();
@@ -362,6 +454,14 @@ const TiebaApp = {
     };
 
     // 帖子相关函数
+    const openPostInBar = (barId) => {
+      // 设置当前贴吧ID
+      postForm.barId = barId;
+      
+      // 显示发帖模态框
+      showModal('post');
+    };
+
     const submitPost = async () => {
       if (!isLoggedIn.value) {
         showNotification("请先登录", "warning");
@@ -464,23 +564,6 @@ const TiebaApp = {
     const createBar = () => {
       showModal('createBar');
     };
-    
-    // 测试Vue应用
-    const testVue = () => {
-      console.log("Vue应用测试:", state);
-      console.log("Vue应用状态:", window.vueAppStatus);
-      console.log("pywebview API可用性:", window.pywebview && window.pywebview.api);
-      
-      // 测试openPost方法
-      if (state.posts && state.posts.length > 0) {
-        console.log("测试openPost方法，帖子ID:", state.posts[0].id);
-        openPost(state.posts[0].id);
-      } else {
-        showNotification("没有可用的帖子进行测试", "warning");
-      }
-      
-      showNotification("Vue应用测试完成，请查看控制台", "info");
-    };
 
     // 初始化应用
     const initApp = async () => {
@@ -530,6 +613,7 @@ const TiebaApp = {
 
       // 工具函数
       escapeHtml,
+      displayBarName,
       formatNumber,
       formatTime,
 
@@ -542,7 +626,12 @@ const TiebaApp = {
 
       // 数据加载函数
       loadPostsInBar,
+      loadLatestPosts,
+      loadHotPosts,
+      refreshPosts,
       openPost,
+      openPostInBar,
+      backToLatestPosts,
 
       // 用户认证函数
       submitLogin,
@@ -567,8 +656,7 @@ const TiebaApp = {
       // 打开创建贴吧模态框
       createBar,
       
-      // 测试方法
-      testVue
+
     };
   }
 };
@@ -589,6 +677,17 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log("pywebview ready, mounting Vue app...");
       app.mount('#app');
       window.vueAppStatus.mounted = true;
+      
+      // 隐藏加载动画
+      setTimeout(() => {
+        const loadingScreen = document.getElementById('loading-screen');
+        if (loadingScreen) {
+          loadingScreen.style.opacity = '0';
+          setTimeout(() => {
+            loadingScreen.style.display = 'none';
+          }, 500); // 等待淡出动画完成
+        }
+      }, 500); // 延迟一点时间，让应用完全加载
     } else {
       // 监听pywebviewready事件，然后挂载应用
       console.log("Waiting for pywebview to be ready...");
@@ -596,10 +695,30 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("pywebviewready event fired, mounting Vue app...");
         app.mount('#app');
         window.vueAppStatus.mounted = true;
+        
+        // 隐藏加载动画
+        setTimeout(() => {
+          const loadingScreen = document.getElementById('loading-screen');
+          if (loadingScreen) {
+            loadingScreen.style.opacity = '0';
+            setTimeout(() => {
+              loadingScreen.style.display = 'none';
+            }, 500); // 等待淡出动画完成
+          }
+        }, 500); // 延迟一点时间，让应用完全加载
       });
     }
   } catch (error) {
     console.error("Failed to initialize Vue app:", error);
     window.vueAppStatus.error = error;
+    
+    // 即使出错也要隐藏加载动画，避免用户卡在加载界面
+    const loadingScreen = document.getElementById('loading-screen');
+    if (loadingScreen) {
+      loadingScreen.style.opacity = '0';
+      setTimeout(() => {
+        loadingScreen.style.display = 'none';
+      }, 500);
+    }
   }
 });
