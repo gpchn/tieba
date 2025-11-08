@@ -149,9 +149,11 @@ LIMIT %s OFFSET %s
 
 # 查询帖子的所有评论
 GET_COMMENTS_IN_POST_COMMAND = """
-SELECT id, content, author_id, create_time, likes
-FROM comments WHERE post_id = %s
-ORDER BY create_time ASC
+SELECT c.id, c.content, c.author_id, c.create_time, c.likes, u.name as author_name
+FROM comments c
+JOIN users u ON c.author_id = u.id
+WHERE c.post_id = %s
+ORDER BY c.create_time ASC
 LIMIT %s OFFSET %s
 """
 
@@ -330,8 +332,8 @@ def get_post_by_id(cursor, post_id):
         return None
 
     # 转换datetime对象为字符串
-    if 'create_time' in post and hasattr(post['create_time'], 'strftime'):
-        post['create_time'] = post['create_time'].strftime('%Y-%m-%d %H:%M:%S')
+    if "create_time" in post and hasattr(post["create_time"], "strftime"):
+        post["create_time"] = post["create_time"].strftime("%Y-%m-%d %H:%M:%S")
 
     return post
 
@@ -352,8 +354,8 @@ def get_posts_in_bar(cursor, bar_id, page=1, per_page=20):
 
     # 转换datetime对象为字符串
     for post in posts:
-        if 'create_time' in post and hasattr(post['create_time'], 'strftime'):
-            post['create_time'] = post['create_time'].strftime('%Y-%m-%d %H:%M:%S')
+        if "create_time" in post and hasattr(post["create_time"], "strftime"):
+            post["create_time"] = post["create_time"].strftime("%Y-%m-%d %H:%M:%S")
 
     return posts
 
@@ -367,8 +369,10 @@ def get_comments_in_post(cursor, post_id, page=1, per_page=50):
 
     # 转换datetime对象为字符串
     for comment in comments:
-        if 'create_time' in comment and hasattr(comment['create_time'], 'strftime'):
-            comment['create_time'] = comment['create_time'].strftime('%Y-%m-%d %H:%M:%S')
+        if "create_time" in comment and hasattr(comment["create_time"], "strftime"):
+            comment["create_time"] = comment["create_time"].strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
 
     return comments
 
@@ -381,8 +385,8 @@ def get_hot_bars(cursor, limit=10):
 
     # 转换datetime对象为字符串
     for bar in bars:
-        if 'create_time' in bar and hasattr(bar['create_time'], 'strftime'):
-            bar['create_time'] = bar['create_time'].strftime('%Y-%m-%d %H:%M:%S')
+        if "create_time" in bar and hasattr(bar["create_time"], "strftime"):
+            bar["create_time"] = bar["create_time"].strftime("%Y-%m-%d %H:%M:%S")
 
     return bars
 
@@ -395,8 +399,8 @@ def get_user_bars(cursor, user_id):
 
     # 转换datetime对象为字符串
     for bar in bars:
-        if 'create_time' in bar and hasattr(bar['create_time'], 'strftime'):
-            bar['create_time'] = bar['create_time'].strftime('%Y-%m-%d %H:%M:%S')
+        if "create_time" in bar and hasattr(bar["create_time"], "strftime"):
+            bar["create_time"] = bar["create_time"].strftime("%Y-%m-%d %H:%M:%S")
 
     return bars
 
@@ -418,6 +422,7 @@ def unfollow_bar(cursor, user_id, bar_id):
     cursor.execute(DELETE_USER_BAR_COMMAND, (user_id, bar_id))
     return cursor.rowcount > 0
 
+
 @with_db_connection
 def get_stats(cursor):
     """获取社区统计信息"""
@@ -436,11 +441,15 @@ def get_stats(cursor):
     stats["comments"] = cursor.fetchone()["count"]
 
     # 获取今日发帖数
-    cursor.execute("SELECT COUNT(*) as count FROM posts WHERE DATE(create_time) = CURDATE()")
+    cursor.execute(
+        "SELECT COUNT(*) as count FROM posts WHERE DATE(create_time) = CURDATE()"
+    )
     stats["today_posts"] = cursor.fetchone()["count"]
 
     # 获取今日注册用户数
-    cursor.execute("SELECT COUNT(*) as count FROM users WHERE DATE(CURRENT_TIMESTAMP) = CURDATE()")
+    cursor.execute(
+        "SELECT COUNT(*) as count FROM users WHERE DATE(CURRENT_TIMESTAMP) = CURDATE()"
+    )
     stats["today_users"] = cursor.fetchone()["count"]
 
     return stats
@@ -467,8 +476,8 @@ def get_latest_posts(cursor, page=1, per_page=20):
 
     # 转换datetime对象为字符串
     for post in posts:
-        if 'create_time' in post and hasattr(post['create_time'], 'strftime'):
-            post['create_time'] = post['create_time'].strftime('%Y-%m-%d %H:%M:%S')
+        if "create_time" in post and hasattr(post["create_time"], "strftime"):
+            post["create_time"] = post["create_time"].strftime("%Y-%m-%d %H:%M:%S")
 
     return posts
 

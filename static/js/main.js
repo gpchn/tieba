@@ -225,22 +225,49 @@ async function openPost(postId) {
       const commentDiv = document.createElement("div");
       commentDiv.className = "comment";
 
+      // 创建评论内容区域
       const contentDiv = document.createElement("div");
+      contentDiv.className = "comment-content";
       contentDiv.textContent = escapeHtml(c.content);
       commentDiv.appendChild(contentDiv);
 
+      // 创建评论元信息区域
       const metaDiv = document.createElement("div");
       metaDiv.className = "comment-meta";
-      metaDiv.innerHTML = `by ${c.author_name || c.author_id} · ${c.create_time} · 点赞 ${
-        c.likes || 0
-      }`;
+
+      // 创建作者信息部分
+      const authorDiv = document.createElement("div");
+      authorDiv.className = "comment-author";
+      authorDiv.innerHTML = `${c.author_name}<span class="comment-time">${c.create_time}</span>`;
+      metaDiv.appendChild(authorDiv);
+
+      // 创建操作按钮部分
+      const actionsDiv = document.createElement("div");
+      actionsDiv.className = "comment-actions";
 
       // 添加点赞按钮
       const likeBtn = document.createElement("button");
-      likeBtn.className = "btn btn-sm";
-      likeBtn.innerHTML = `<i class="fas fa-thumbs-up"></i> 点赞`;
+      likeBtn.className = "comment-like-btn";
+
+      // 检查当前用户是否已点赞此评论
+      const isLiked = c.liked_by_user || false;
+      if (isLiked) {
+        likeBtn.classList.add("liked");
+        likeBtn.innerHTML = `<i class="fas fa-thumbs-up"></i> 已点赞`;
+      } else {
+        likeBtn.innerHTML = `<i class="far fa-thumbs-up"></i> 点赞`;
+      }
+
       likeBtn.onclick = () => likeComment(c.id);
-      metaDiv.appendChild(likeBtn);
+      actionsDiv.appendChild(likeBtn);
+
+      // 添加点赞数
+      const likesSpan = document.createElement("span");
+      likesSpan.className = "comment-likes";
+      likesSpan.textContent = `${c.likes || 0}`;
+      actionsDiv.insertBefore(likesSpan, actionsDiv.firstChild);
+
+      metaDiv.appendChild(actionsDiv);
 
       commentDiv.appendChild(metaDiv);
       commentsList.appendChild(commentDiv);
@@ -261,8 +288,29 @@ async function submitComment(postId, content) {
   }
 
   const r = await window.pywebview.api.createComment(postId, content, null);
-  if (r && r.success) showNotification("评论成功", "success");
+  if (r && r.success) {
+    showNotification("评论成功", "success");
+    // 重新加载帖子详情以显示新评论
+    openPost(postId);
+  }
   else showNotification("评论失败:" + (r && r.error), "error");
+}
+
+async function submitCommentAction() {
+  // 获取评论内容
+  const content = document.getElementById("comment-content").value.trim();
+
+  // 检查评论内容是否为空
+  if (!content) {
+    showNotification("请输入评论内容", "error");
+    return;
+  }
+
+  // 调用submitComment函数
+  await submitComment(currentPostId, content);
+
+  // 清空评论框
+  document.getElementById("comment-content").value = "";
 }
 
 async function likeComment(commentId) {
@@ -419,6 +467,7 @@ async function initApp() {
   document.getElementById("post-submit").onclick = submitPost;
   document.getElementById("btn-create-bar").onclick = createBar;
   document.getElementById("create-bar-submit").onclick = submitCreateBar;
+  document.getElementById("comment-submit").onclick = submitCommentAction;
 
   // load initial state
   try {
