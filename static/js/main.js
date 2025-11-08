@@ -151,7 +151,7 @@ function renderPosts(posts, barId) {
     div.className = "post";
 
     // 获取用户名首字母作为头像
-    const avatar = p.author_id ? p.author_id.charAt(0).toUpperCase() : "U";
+    const avatar = p.author_name ? p.author_name.charAt(0).toUpperCase() : "U";
 
     // 格式化时间
     const timeStr = formatTime(p.create_time);
@@ -161,7 +161,7 @@ function renderPosts(posts, barId) {
         <div class="post-avatar">${avatar}</div>
         <div class="post-meta">
           <div class="post-author">${escapeHtml(
-            p.author_id || "匿名用户"
+            p.author_name || "匿名用户"
           )}</div>
           <div class="post-time">${timeStr}</div>
         </div>
@@ -213,7 +213,7 @@ async function openPost(postId) {
   document.getElementById("detail-title").textContent = escapeHtml(post.title);
   document.getElementById(
     "detail-author"
-  ).textContent = `作者: ${post.author_id}`;
+  ).textContent = `作者: ${post.author_name || post.author_id}`;
   document.getElementById("detail-time").textContent = post.create_time;
   document.getElementById("detail-content").textContent = post.content;
 
@@ -231,7 +231,7 @@ async function openPost(postId) {
 
       const metaDiv = document.createElement("div");
       metaDiv.className = "comment-meta";
-      metaDiv.innerHTML = `by ${c.author_id} · ${c.create_time} · 点赞 ${
+      metaDiv.innerHTML = `by ${c.author_name || c.author_id} · ${c.create_time} · 点赞 ${
         c.likes || 0
       }`;
 
@@ -248,8 +248,9 @@ async function openPost(postId) {
   } else {
     commentsList.innerHTML = "<p>暂无评论</p>";
   }
-  const w = window.open("", "_blank");
-  w.document.write(html.join("\n"));
+  // 显示帖子详情模态框
+  showModal("modal-post-detail");
+  (("\n"));
 }
 
 async function submitComment(postId, content) {
@@ -400,6 +401,11 @@ function search() {
   showNotification("搜索尚未实现");
 }
 
+async function loadLatestPosts() {
+  const posts = await window.pywebview.api.getLatestPosts(1, 20);
+  renderPosts(posts, null);
+}
+
 async function initApp() {
   // 绑定按钮
   document.getElementById("btn-login").onclick = () => showModal("modal-login");
@@ -428,6 +434,7 @@ async function initApp() {
   }
   await loadHotBars();
   await loadStats();
+  await loadLatestPosts();
 }
 
 // 页面加载完成后初始化

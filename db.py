@@ -447,6 +447,33 @@ def get_stats(cursor):
 
 
 @with_db_connection
+def get_latest_posts(cursor, page=1, per_page=20):
+    """获取最新帖子列表（分页）"""
+    offset = (page - 1) * per_page
+
+    # 查询最新帖子，并关联贴吧名称和用户名
+    query = """
+    SELECT p.id, p.title, p.content, p.bar_id, p.author_id, p.create_time,
+           b.name as bar_name, u.name as author_name
+    FROM posts p
+    JOIN bars b ON p.bar_id = b.id
+    JOIN users u ON p.author_id = u.id
+    ORDER BY p.create_time DESC
+    LIMIT %s OFFSET %s
+    """
+
+    cursor.execute(query, (per_page, offset))
+    posts = cursor.fetchall()
+
+    # 转换datetime对象为字符串
+    for post in posts:
+        if 'create_time' in post and hasattr(post['create_time'], 'strftime'):
+            post['create_time'] = post['create_time'].strftime('%Y-%m-%d %H:%M:%S')
+
+    return posts
+
+
+@with_db_connection
 def reset_all_dbs(cursor):
     cursor.execute("DROP TABLE IF EXISTS comments")
     cursor.execute("DROP TABLE IF EXISTS posts")

@@ -6,6 +6,11 @@ from pathlib import Path
 import db
 
 
+ROOT_DIR = Path(__file__).parent
+STATIC_DIR = ROOT_DIR / "static"
+USER_DATA_DIR = ROOT_DIR / "userdata"
+
+
 class Api:
     def __init__(self):
         # 简单的内存会话，仅用于桌面应用示例
@@ -106,9 +111,10 @@ class Api:
         """获取社区统计信息"""
         return db.get_stats()  # type: ignore
 
+    def getLatestPosts(self, page=1, per_page=20):
+        """获取最新帖子（分页）"""
+        return db.get_latest_posts(page, per_page)  # type: ignore
 
-ROOT_DIR = Path(__file__).parent
-STATIC_DIR = ROOT_DIR / "static"
 
 main_window = webview.create_window(
     title="Tieba",
@@ -116,8 +122,7 @@ main_window = webview.create_window(
     js_api=Api(),
     height=800,
     width=1200,
-    on_top=True,
 )
 
 if __name__ == "__main__":
-    webview.start(http_server=True)
+    webview.start(http_server=True, debug=True)
